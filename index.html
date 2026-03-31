@@ -4,565 +4,451 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Dattes — Oasis du Sud Tunisien</title>
-
-<!-- ══════════════════════════════════════════════════
-FIREBASE SDK
-══════════════════════════════════════════════════ -->
-
-<script type="module">
-// ─────────────────────────────────────────────────
-// ⚠️ REMPLACEZ CES VALEURS PAR VOTRE firebaseConfig
-// ─────────────────────────────────────────────────
-import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
-import { getAuth, signInWithEmailAndPassword, signOut, onAuthStateChanged }
-from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
-import { getFirestore, collection, addDoc, getDocs, deleteDoc, doc, query, orderBy, serverTimestamp }
-from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
-
-const firebaseConfig = {
-apiKey: "VOTRE_API_KEY",
-authDomain: "VOTRE_PROJECT.firebaseapp.com",
-projectId: "VOTRE_PROJECT_ID",
-storageBucket: "VOTRE_PROJECT.appspot.com",
-messagingSenderId: "VOTRE_SENDER_ID",
-appId: "VOTRE_APP_ID"
-};
-// ─────────────────────────────────────────────────
-
-const app = initializeApp(firebaseConfig);
-const auth = getAuth(app);
-const db = getFirestore(app);
-
-// ── CODE D'ACCÈS POUR LES AGRICULTEURS ───────────
-// Changez ce code et partagez-le uniquement avec vos agriculteurs
-const ACCESS_CODE = "dattes2024";
-
-// ── EMAIL ADMIN ───────────────────────────────────
-// C'est VOTRE email Firebase Authentication
-const ADMIN_EMAIL = "votre@email.com";
-
-// ═══════════════════════════════════════════════════
-// ÉTAT GLOBAL
-// ═══════════════════════════════════════════════════
-let currentUser = null;
-let isAdmin = false;
-let hasAccess = false;
-
-// ═══════════════════════════════════════════════════
-// AUTH — surveiller l'état de connexion
-// ═══════════════════════════════════════════════════
-onAuthStateChanged(auth, user => {
-currentUser = user;
-isAdmin = user?.email === ADMIN_EMAIL;
-if (isAdmin) showAdmin();
-});
-
-// ═══════════════════════════════════════════════════
-// LOGIN ADMIN
-// ═══════════════════════════════════════════════════
-window.loginAdmin = async () => {
-const email = document.getElementById('adminEmail').value.trim();
-const pass = document.getElementById('adminPass').value;
-try {
-await signInWithEmailAndPassword(auth, email, pass);
-} catch(e) {
-document.getElementById('loginError').textContent = "Email ou mot de passe incorrect.";
-}
-};
-
-window.logoutAdmin = async () => {
-await signOut(auth);
-isAdmin = false;
-showLoginAdmin();
-};
-
-// ═══════════════════════════════════════════════════
-// CODE D'ACCÈS AGRICULTEUR
-// ═══════════════════════════════════════════════════
-window.verifierCode = () => {
-const code = document.getElementById('accessCode').value.trim();
-if (code === ACCESS_CODE) {
-hasAccess = true;
-showSaisie();
-} else {
-document.getElementById('codeError').textContent = "Code incorrect. Contactez l'administrateur.";
-}
-};
-
-// ═══════════════════════════════════════════════════
-// SAUVEGARDER UNE SAISON (agriculteur)
-// ═══════════════════════════════════════════════════
-window.sauvegarder = async () => {
-const annee = document.getElementById('f_annee').value;
-if (!annee) { toast('⚠ Veuillez saisir une année'); return; }
-const v = id => parseFloat(document.getElementById(id).value) || 0;
-
-const rec = {
-annee: parseInt(annee),
-mode: document.getElementById('f_mode').value,
-nom: document.getElementById('f_nom').value || 'Sans nom',
-region: document.getElementById('f_region').value || '',
-surface: v('f_surface'),
-palmiers: parseInt(document.getElementById('f_palmiers').value) || 0,
-production: v('f_production'),
-pertes: v('f_pertes'),
-mo: v('f_mo'),
-intrants: v('f_intrants'),
-eau: v('f_eau'),
-recolte: v('f_recolte'),
-transport: v('f_transport'),
-cert: v('f_cert'),
-amort: v('f_amort'),
-autres: v('f_autres'),
-pv: v('f_pv'),
-canal: document.getElementById('f_canal').value,
-notes: document.getElementById('f_notes').value || '',
-createdAt: serverTimestamp()
-};
-
-try {
-document.getElementById('btnSave').textContent = '⏳ Envoi…';
-document.getElementById('btnSave').disabled = true;
-await addDoc(collection(db, 'saisons'), rec);
-// Reset form
-['f_surface','f_palmiers','f_production','f_pertes','f_mo','f_intrants','f_eau',
-'f_recolte','f_transport','f_cert','f_amort','f_autres','f_pv','f_nom','f_region','f_notes']
-.forEach(id => document.getElementById(id).value = '');
-document.getElementById('liveResult').style.display = 'none';
-toast('✅ Données envoyées avec succès !');
-} catch(e) {
-toast('❌ Erreur : ' + e.message);
-} finally {
-document.getElementById('btnSave').textContent = '📤 Envoyer mes données';
-document.getElementById('btnSave').disabled = false;
-}
-};
-
-// ═══════════════════════════════════════════════════
-// CHARGER TOUTES LES DONNÉES (admin)
-// ═══════════════════════════════════════════════════
-window.chargerDonnees = async () => {
-document.getElementById('adminTableBody').innerHTML = '<tr><td colspan="7" style="text-align:center;color:var(--muted)">⏳ Chargement…</td></tr>';
-try {
-const q = query(collection(db, 'saisons'), orderBy('createdAt', 'desc'));
-const snap = await getDocs(q);
-const rows = [];
-snap.forEach(d => rows.push({ id: d.id, ...d.data() }));
-window._allData = rows;
-renderAdminTable(rows);
-document.getElementById('totalEntrees').textContent = rows.length;
-} catch(e) {
-toast('❌ ' + e.message);
-}
-};
-
-function calcRecord(r) {
-const totalCharges = (r.mo||0)+(r.intrants||0)+(r.eau||0)+(r.recolte||0)+(r.transport||0)+(r.cert||0)+(r.amort||0)+(r.autres||0);
-const netProd = (r.production||0)-(r.pertes||0);
-const cout = netProd > 0 ? totalCharges / netProd : 0;
-const marge = (r.pv||0) - cout;
-return { totalCharges, cout, marge };
-}
-
-function renderAdminTable(rows) {
-if (!rows.length) {
-document.getElementById('adminTableBody').innerHTML = '<tr><td colspan="7" style="text-align:center;color:var(--muted)">Aucune donnée</td></tr>';
-return;
-}
-document.getElementById('adminTableBody').innerHTML = rows.map(r => {
-const c = calcRecord(r);
-return `<tr>
-<td><strong>${r.annee}</strong></td>
-<td>${r.nom}<br><span style="font-size:.65rem;color:var(--muted)">${r.region||''}</span></td>
-<td><span class="sc-badge ${r.mode==='bio'?'bio-badge':'conv-badge'}">${r.mode.toUpperCase()}</span></td>
-<td>${r.production||0} kg</td>
-<td style="color:var(--terra);font-weight:600">${c.cout.toFixed(3)}</td>
-<td style="color:${c.marge>=0?'var(--bio)':'#dc3545'};font-weight:600">${c.marge>=0?'+':''}${c.marge.toFixed(3)}</td>
-<td><button class="btn btn-danger btn-sm" onclick="supprimerDoc('${r.id}')">🗑</button></td>
-</tr>`;
-}).join('');
-}
-
-window.supprimerDoc = async (id) => {
-if (!confirm('Supprimer cet enregistrement ?')) return;
-await deleteDoc(doc(db, 'saisons', id));
-toast('🗑 Supprimé');
-chargerDonnees();
-};
-
-// ═══════════════════════════════════════════════════
-// EXPORT CSV (admin)
-// ═══════════════════════════════════════════════════
-window.exportCSV = () => {
-const data = window._allData || [];
-if (!data.length) { toast('⚠ Aucune donnée'); return; }
-const keys = ['annee','mode','nom','region','surface','palmiers','production','pertes',
-'mo','intrants','eau','recolte','transport','cert','amort','autres','pv','canal','notes'];
-const csv = [keys.join(';'), ...data.map(r => keys.map(k => r[k]||'').join(';'))].join('\n');
-const a = document.createElement('a');
-a.href = URL.createObjectURL(new Blob([csv], {type:'text/csv'}));
-a.download = 'dattes_toutes_donnees.csv';
-a.click();
-toast('✅ CSV exporté');
-};
-
-// ═══════════════════════════════════════════════════
-// CALCUL EN DIRECT (agriculteur)
-// ═══════════════════════════════════════════════════
-window.calcLive = () => {
-const v = id => parseFloat(document.getElementById(id)?.value) || 0;
-const prod = v('f_production'), pertes = v('f_pertes'), pv = v('f_pv'), surface = v('f_surface');
-const totalCharges = v('f_mo')+v('f_intrants')+v('f_eau')+v('f_recolte')+v('f_transport')+v('f_cert')+v('f_amort')+v('f_autres');
-const div = document.getElementById('liveResult');
-if (totalCharges > 0 || prod > 0) {
-div.style.display = 'block';
-const netProd = prod - pertes;
-const cout = netProd > 0 ? totalCharges / netProd : 0;
-const marge = pv - cout;
-const rdt = surface > 0 ? prod / surface : 0;
-document.getElementById('live_cout').textContent = cout.toFixed(3);
-document.getElementById('live_marge').textContent = (marge >= 0 ? '+' : '') + marge.toFixed(3);
-document.getElementById('live_marge').style.color = marge >= 0 ? 'var(--bio)' : '#dc3545';
-document.getElementById('live_total').textContent = totalCharges.toFixed(0);
-document.getElementById('live_rdt').textContent = rdt > 0 ? Math.round(rdt) : '—';
-const a = document.getElementById('live_alert');
-if (!cout) { a.className='alert'; a.textContent=''; }
-else if (marge > 0) { a.className='alert alert-success'; a.textContent=`✅ Rentable : +${marge.toFixed(3)} DT/kg`; }
-else { a.className='alert alert-info'; a.textContent=`⚠️ Déficitaire de ${Math.abs(marge).toFixed(3)} DT/kg`; }
-} else { div.style.display='none'; }
-};
-
-// ═══════════════════════════════════════════════════
-// NAVIGATION ENTRE ÉCRANS
-// ═══════════════════════════════════════════════════
-function hideAll() {
-['screen-accueil','screen-code','screen-saisie','screen-admin','screen-login-admin']
-.forEach(id => { const el=document.getElementById(id); if(el) el.style.display='none'; });
-}
-window.showSaisie = () => { hideAll(); document.getElementById('screen-saisie').style.display='block'; };
-window.showAdmin = () => { hideAll(); document.getElementById('screen-admin').style.display='block'; chargerDonnees(); };
-window.showLoginAdmin = () => { hideAll(); document.getElementById('screen-login-admin').style.display='block'; };
-window.showCode = () => { hideAll(); document.getElementById('screen-code').style.display='block'; };
-
-// Accueil au démarrage
-window.addEventListener('DOMContentLoaded', () => {
-hideAll();
-document.getElementById('screen-accueil').style.display = 'block';
-});
-
-function toast(msg) {
-const el = document.getElementById('toast');
-el.textContent = msg; el.classList.add('show');
-setTimeout(() => el.classList.remove('show'), 2800);
-}
-</script>
-
+<title>Estimation de coût de production d'un kg des dattes aux oasis du sud Tunisien</title>
+<link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700;800&family=DM+Mono:wght@300;400;500&display=swap" rel="stylesheet">
 <style>
 *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
 :root{
---bg:#f7f3ee;--card:#fff;--brown:#2c1810;--terra:#8b3a1a;
---gold:#c8860a;--amber:#e8a020;--bio:#5a9e3a;--conv:#c07820;
---muted:#9a8070;--border:#e8ddd0;--sand:#f0e8d8;
---shadow:rgba(44,24,16,0.10);
+  --bg:#f7f3ee;
+  --card:#ffffff;
+  --brown:#2c1810;
+  --terra:#8b3a1a;
+  --gold:#c8860a;
+  --amber:#e8a020;
+  --lime:#4a7c2f;
+  --bio:#5a9e3a;
+  --conv:#c07820;
+  --muted:#9a8070;
+  --border:#e8ddd0;
+  --sand:#f0e8d8;
+  --shadow:rgba(44,24,16,0.10);
 }
 body{font-family:'DM Mono',monospace;background:var(--bg);color:var(--brown);min-height:100vh}
-@import url('https://fonts.googleapis.com/css2?family=Syne:wght@400;700;800&family=DM+Mono:wght@300;400;500&display=swap');
 
-/* ── ÉCRANS ── */
-.screen{max-width:480px;margin:0 auto;padding:24px 16px 80px}
+/* NAV TABS */
+.nav{position:sticky;top:0;z-index:100;background:var(–brown);display:flex;overflow-x:auto;scrollbar-width:none}
+.nav::-webkit-scrollbar{display:none}
+.nav-btn{flex:1;min-width:80px;padding:14px 8px;border:none;background:transparent;color:rgba(255,255,255,0.45);font-family:‘Syne’,sans-serif;font-size:0.7rem;font-weight:600;letter-spacing:1.5px;text-transform:uppercase;cursor:pointer;transition:all .2s;border-bottom:2px solid transparent;white-space:nowrap}
+.nav-btn.active{color:#fff;border-bottom-color:var(–amber)}
 
-/* ── ACCUEIL ── */
-.hero{text-align:center;padding:60px 20px 40px}
-.hero-icon{font-size:4rem;margin-bottom:16px}
-.hero h1{font-family:'Syne',sans-serif;font-size:1.8rem;font-weight:800;color:var(--terra);margin-bottom:8px}
-.hero p{font-size:0.82rem;color:var(--muted);line-height:1.7;margin-bottom:32px}
-.hero-btns{display:flex;flex-direction:column;gap:12px;max-width:280px;margin:0 auto}
+/* PAGES */
+.page{display:none;max-width:480px;margin:0 auto;padding:20px 16px 80px}
+.page.active{display:block}
 
-/* ── CARD ── */
-.card{background:var(--card);border:1px solid var(--border);border-radius:16px;padding:18px;margin-bottom:14px;box-shadow:0 2px 12px var(--shadow)}
-.card-title{font-family:'Syne',sans-serif;font-size:0.8rem;font-weight:700;letter-spacing:1.5px;text-transform:uppercase;color:var(--terra);margin-bottom:14px}
+/* HEADER */
 .page-header{margin-bottom:24px}
-.page-header h2{font-family:'Syne',sans-serif;font-size:1.4rem;font-weight:800;color:var(--terra)}
-.page-header p{font-size:0.72rem;color:var(--muted);margin-top:4px}
+.page-header h2{font-family:‘Syne’,sans-serif;font-size:1.5rem;font-weight:800;color:var(–terra)}
+.page-header p{font-size:0.72rem;color:var(–muted);margin-top:4px;letter-spacing:.5px}
 
-/* ── FORM ── */
+/* CARD */
+.card{background:var(–card);border:1px solid var(–border);border-radius:16px;padding:18px;margin-bottom:14px;box-shadow:0 2px 12px var(–shadow)}
+.card-title{font-family:‘Syne’,sans-serif;font-size:0.8rem;font-weight:700;letter-spacing:1.5px;text-transform:uppercase;color:var(–terra);margin-bottom:14px;display:flex;align-items:center;gap:8px}
+
+/* FORM */
 .field{margin-bottom:12px}
-.field label{display:block;font-size:0.68rem;letter-spacing:1px;text-transform:uppercase;color:var(--muted);margin-bottom:5px;font-weight:500}
-.field input,.field select,.field textarea{width:100%;padding:10px 13px;background:var(--sand);border:1.5px solid var(--border);border-radius:10px;font-family:'DM Mono',monospace;font-size:0.88rem;color:var(--brown);outline:none;transition:border-color .2s}
-.field input:focus,.field select:focus{border-color:var(--amber);box-shadow:0 0 0 3px rgba(200,134,10,0.12)}
+.field label{display:block;font-size:0.68rem;letter-spacing:1px;text-transform:uppercase;color:var(–muted);margin-bottom:5px;font-weight:500}
+.field input,.field select,.field textarea{
+width:100%;padding:10px 13px;
+background:var(–sand);border:1.5px solid var(–border);border-radius:10px;
+font-family:‘DM Mono’,monospace;font-size:0.88rem;color:var(–brown);
+outline:none;transition:border-color .2s,box-shadow .2s;
+}
+.field input:focus,.field select:focus{border-color:var(–amber);box-shadow:0 0 0 3px rgba(200,134,10,0.12)}
 .field textarea{resize:vertical;min-height:60px}
-.field .unit{font-size:0.68rem;color:var(--muted);margin-top:3px}
-.field select{appearance:none;background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6'%3E%3Cpath d='M0 0l5 6 5-6z' fill='%239a8070'/%3E%3C/svg%3E");background-repeat:no-repeat;background-position:right 12px center}
+.field .unit{font-size:0.68rem;color:var(–muted);margin-top:3px}
+.field select{appearance:none;background-image:url(“data:image/svg+xml,%3Csvg xmlns=‘http://www.w3.org/2000/svg’ width=‘10’ height=‘6’%3E%3Cpath d=‘M0 0l5 6 5-6z’ fill=’%239a8070’/%3E%3C/svg%3E”);background-repeat:no-repeat;background-position:right 12px center}
+
 .row2{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.row3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px}
 
-/* ── BOUTONS ── */
-.btn{display:inline-flex;align-items:center;justify-content:center;gap:6px;padding:12px 20px;border:none;border-radius:10px;font-family:'Syne',sans-serif;font-size:0.82rem;font-weight:700;cursor:pointer;transition:all .2s;text-align:center}
-.btn-primary{background:var(--terra);color:#fff}.btn-primary:hover{background:var(--brown)}
-.btn-admin{background:var(--brown);color:#fff}
-.btn-gold{background:var(--gold);color:#fff}
-.btn-danger{background:#dc3545;color:#fff}
-.btn-outline{background:transparent;border:1.5px solid var(--border);color:var(--muted)}
-.btn-full{width:100%}
+/* BUTTONS */
+.btn{display:inline-flex;align-items:center;gap:6px;padding:11px 18px;border:none;border-radius:10px;font-family:‘Syne’,sans-serif;font-size:0.78rem;font-weight:700;letter-spacing:.5px;cursor:pointer;transition:all .2s}
+.btn-primary{background:var(–terra);color:white}
+.btn-primary:hover{background:var(–brown)}
+.btn-bio{background:var(–bio);color:white}
+.btn-conv{background:var(–conv);color:white}
 .btn-sm{padding:7px 12px;font-size:0.7rem;border-radius:8px}
-.btn:disabled{opacity:.5;cursor:not-allowed}
+.btn-danger{background:#dc3545;color:white}
+.btn-outline{background:transparent;border:1.5px solid var(–border);color:var(–muted)}
+.btn-full{width:100%;justify-content:center}
+.btn-gold{background:var(–gold);color:white}
 
-/* ── KPI ── */
+/* SAISON RECORD */
+.saison-card{
+background:var(–card);border:1.5px solid var(–border);border-radius:14px;
+padding:14px 16px;margin-bottom:10px;cursor:pointer;
+transition:all .2s;position:relative;
+}
+.saison-card:hover{border-color:var(–amber);box-shadow:0 4px 16px var(–shadow)}
+.saison-card.bio-card{border-left:4px solid var(–bio)}
+.saison-card.conv-card{border-left:4px solid var(–conv)}
+.sc-top{display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:8px}
+.sc-annee{font-family:‘Syne’,sans-serif;font-size:1rem;font-weight:800;color:var(–terra)}
+.sc-badge{font-size:0.65rem;padding:3px 9px;border-radius:20px;font-weight:600;letter-spacing:.5px}
+.bio-badge{background:rgba(90,158,58,0.15);color:var(–bio)}
+.conv-badge{background:rgba(192,120,32,0.15);color:var(–conv)}
+.sc-meta{font-size:0.72rem;color:var(–muted);margin-bottom:8px}
+.sc-kpis{display:flex;gap:10px}
+.sc-kpi{flex:1;background:var(–sand);border-radius:8px;padding:7px 10px;text-align:center}
+.sc-kpi-val{font-family:‘Syne’,sans-serif;font-size:1rem;font-weight:700;color:var(–terra)}
+.sc-kpi-lbl{font-size:0.6rem;color:var(–muted);letter-spacing:.5px;text-transform:uppercase}
+.sc-actions{display:flex;gap:6px;margin-top:10px}
+
+/* RÉSULTATS */
 .kpi-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:14px}
-.kpi-box{background:var(--card);border:1px solid var(--border);border-radius:14px;padding:14px;text-align:center}
-.kpi-val{font-family:'Syne',sans-serif;font-size:1.5rem;font-weight:800;line-height:1}
-.kpi-lbl{font-size:0.6rem;color:var(--muted);letter-spacing:1px;text-transform:uppercase;margin-top:4px}
-.kpi-unit{font-size:0.68rem;color:var(--muted);margin-top:2px}
+.kpi-box{background:var(–card);border:1px solid var(–border);border-radius:14px;padding:14px;text-align:center;box-shadow:0 2px 8px var(–shadow)}
+.kpi-box.highlight-bio{border-color:var(–bio);background:rgba(90,158,58,0.05)}
+.kpi-box.highlight-conv{border-color:var(–conv);background:rgba(192,120,32,0.05)}
+.kpi-val{font-family:‘Syne’,sans-serif;font-size:1.6rem;font-weight:800;line-height:1}
+.kpi-lbl{font-size:0.62rem;color:var(–muted);letter-spacing:1px;text-transform:uppercase;margin-top:4px}
+.kpi-unit{font-size:0.7rem;color:var(–muted);margin-top:2px}
 
-/* ── BADGES ── */
-.sc-badge{font-size:0.65rem;padding:3px 9px;border-radius:20px;font-weight:600}
-.bio-badge{background:rgba(90,158,58,0.15);color:var(--bio)}
-.conv-badge{background:rgba(192,120,32,0.15);color:var(--conv)}
-
-/* ── ALERT ── */
-.alert{padding:12px 14px;border-radius:10px;font-size:0.8rem;margin-bottom:14px;line-height:1.5}
-.alert-success{background:rgba(90,158,58,0.12);border:1px solid rgba(90,158,58,0.3);color:var(--bio)}
-.alert-info{background:rgba(200,134,10,0.1);border:1px solid rgba(200,134,10,0.25);color:var(--gold)}
-.alert-danger{background:rgba(220,53,69,0.1);border:1px solid rgba(220,53,69,0.3);color:#dc3545;font-size:0.75rem;margin-top:8px}
-
-/* ── CODE ACCESS ── */
-.code-screen{text-align:center;padding:60px 20px}
-.code-screen h2{font-family:'Syne',sans-serif;font-size:1.4rem;font-weight:800;color:var(--terra);margin-bottom:8px}
-.code-screen p{font-size:0.8rem;color:var(--muted);margin-bottom:24px}
-.code-input{width:100%;max-width:280px;padding:14px;font-size:1.2rem;text-align:center;letter-spacing:4px;background:var(--sand);border:2px solid var(--border);border-radius:12px;font-family:'Syne',sans-serif;font-weight:700;outline:none;transition:border-color .2s}
-.code-input:focus{border-color:var(--amber)}
-
-/* ── TABLE ADMIN ── */
+/* TABLE */
 .table-wrap{overflow-x:auto;-webkit-overflow-scrolling:touch}
-table{width:100%;border-collapse:collapse;font-size:0.75rem;min-width:480px}
-th{background:var(--sand);padding:8px 10px;text-align:left;font-family:'Syne',sans-serif;font-size:0.62rem;letter-spacing:1px;text-transform:uppercase;color:var(--muted);font-weight:600}
-td{padding:9px 10px;border-bottom:1px solid var(--border);vertical-align:middle}
+table{width:100%;border-collapse:collapse;font-size:0.78rem;min-width:340px}
+th{background:var(–sand);padding:8px 10px;text-align:left;font-family:‘Syne’,sans-serif;font-size:0.65rem;letter-spacing:1px;text-transform:uppercase;color:var(–muted);font-weight:600}
+td{padding:9px 10px;border-bottom:1px solid var(–border);vertical-align:middle}
 tr:last-child td{border-bottom:none}
 tr:hover td{background:rgba(200,134,10,0.04)}
+.td-bio{color:var(–bio);font-weight:600}
+.td-conv{color:var(–conv);font-weight:600}
+.td-diff{color:var(–gold);font-weight:600}
 
-/* ── ADMIN HEADER ── */
-.admin-header{background:var(--brown);color:#fff;padding:16px;margin:-24px -16px 24px;border-radius:0 0 20px 20px;display:flex;justify-content:space-between;align-items:center}
-.admin-header h2{font-family:'Syne',sans-serif;font-size:1.1rem;font-weight:800}
-.admin-header p{font-size:0.7rem;opacity:.6;margin-top:2px}
+/* CHART BAR */
+.bar-row{margin-bottom:12px}
+.bar-label{display:flex;justify-content:space-between;font-size:0.72rem;color:var(–muted);margin-bottom:4px}
+.bar-track{height:7px;background:var(–sand);border-radius:4px;overflow:hidden;margin-bottom:3px}
+.bar-fill{height:100%;border-radius:4px;transition:width .6s ease}
+.bar-bio{background:linear-gradient(to right,#3d7a28,var(–bio))}
+.bar-conv{background:linear-gradient(to right,#9a5a18,var(–conv))}
 
-/* ── TOAST ── */
-.toast{position:fixed;bottom:30px;left:50%;transform:translateX(-50%) translateY(20px);background:var(--brown);color:#fff;padding:10px 20px;border-radius:20px;font-size:0.78rem;opacity:0;transition:all .3s;pointer-events:none;z-index:999;white-space:nowrap}
+/* EMPTY STATE */
+.empty{text-align:center;padding:40px 20px;color:var(–muted)}
+.empty-icon{font-size:3rem;margin-bottom:12px}
+.empty p{font-size:0.85rem;line-height:1.6}
+
+/* ALERT */
+.alert{padding:12px 14px;border-radius:10px;font-size:0.8rem;margin-bottom:14px;line-height:1.5}
+.alert-success{background:rgba(90,158,58,0.12);border:1px solid rgba(90,158,58,0.3);color:var(–bio)}
+.alert-info{background:rgba(200,134,10,0.1);border:1px solid rgba(200,134,10,0.25);color:var(–gold)}
+
+/* COMPARAISON */
+.comp-row{display:flex;align-items:center;padding:10px 0;border-bottom:1px solid var(–border);font-size:0.82rem}
+.comp-row:last-child{border:none}
+.comp-label{flex:1;color:var(–muted)}
+.comp-bio{min-width:80px;text-align:right;color:var(–bio);font-weight:600}
+.comp-conv{min-width:80px;text-align:right;color:var(–conv);font-weight:600}
+.comp-diff{min-width:70px;text-align:right;font-size:0.72rem;padding:2px 7px;border-radius:10px}
+.diff-pos{background:rgba(220,80,80,0.12);color:#c04040}
+.diff-neg{background:rgba(90,158,58,0.12);color:var(–bio)}
+
+/* EXPORT */
+.export-preview{background:var(–sand);border-radius:10px;padding:12px;font-size:0.72rem;color:var(–muted);max-height:120px;overflow:auto;word-break:break-all;line-height:1.5}
+
+/* TOAST */
+.toast{position:fixed;bottom:80px;left:50%;transform:translateX(-50%) translateY(20px);background:var(–brown);color:white;padding:10px 20px;border-radius:20px;font-size:0.78rem;opacity:0;transition:all .3s;pointer-events:none;z-index:999;white-space:nowrap}
 .toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
+
+/* MODAL */
+.modal-overlay{position:fixed;inset:0;background:rgba(44,24,16,0.5);z-index:200;display:none;align-items:flex-end;justify-content:center}
+.modal-overlay.open{display:flex}
+.modal{background:var(–card);border-radius:20px 20px 0 0;padding:24px 20px 40px;width:100%;max-width:480px;max-height:90vh;overflow-y:auto;animation:slideUp .3s ease}
+@keyframes slideUp{from{transform:translateY(100%)}to{transform:translateY(0)}}
+.modal-title{font-family:‘Syne’,sans-serif;font-size:1.1rem;font-weight:800;color:var(–terra);margin-bottom:18px;display:flex;justify-content:space-between;align-items:center}
+.modal-close{background:var(–sand);border:none;border-radius:50%;width:30px;height:30px;cursor:pointer;font-size:1rem;color:var(–muted)}
+
+/* SCROLLBAR */
+::-webkit-scrollbar{width:4px}
+::-webkit-scrollbar-track{background:transparent}
+::-webkit-scrollbar-thumb{background:var(–border);border-radius:2px}
 </style>
 
 </head>
 <body>
 
-<!-- ══════════════════════════════════════════════
-ÉCRAN 1 — ACCUEIL
-══════════════════════════════════════════════ -->
+<!-- NAVIGATION -->
 
-<div id="screen-accueil" style="display:none">
-<div class="hero">
-<div class="hero-icon">🌴</div>
-<h1>Dattes Sud Tunisien</h1>
-<p>Estimation du coût de production<br>Oasis du Sud Tunisien</p>
-<div class="hero-btns">
-<button class="btn btn-primary btn-full" onclick="showCode()">
-🌾 Je suis agriculteur
-</button>
-<button class="btn btn-admin btn-full" onclick="showLoginAdmin()">
-🔐 Accès administrateur
-</button>
-</div>
-</div>
-</div>
+<nav class="nav">
+  <button class="nav-btn active" onclick="showPage('saisie')">✏️ Saisie</button>
+  <button class="nav-btn" onclick="showPage('donnees')">🗂 Données</button>
+  <button class="nav-btn" onclick="showPage('resultats')">📊 Résultats</button>
+  <button class="nav-btn" onclick="showPage('comparaison')">⚖️ Comparaison</button>
+  <button class="nav-btn" onclick="showPage('export')">💾 Export</button>
+</nav>
 
-<!-- ══════════════════════════════════════════════
-ÉCRAN 2 — CODE D'ACCÈS AGRICULTEUR
-══════════════════════════════════════════════ -->
+<!-- ═══════════════════════════════════════════ -->
 
-<div id="screen-code" style="display:none">
-<div class="screen">
-<div class="code-screen">
-<div style="font-size:2.5rem;margin-bottom:12px">🔑</div>
-<h2>Code d'accès</h2>
-<p>Entrez le code fourni par l'administrateur</p>
-<input class="code-input" type="password" id="accessCode" placeholder="••••••••"
-onkeydown="if(event.key==='Enter') verifierCode()">
-<div id="codeError" class="alert alert-danger" style="display:none;max-width:280px;margin:12px auto 0"></div>
-<br><br>
-<button class="btn btn-primary" onclick="verifierCode()">Accéder →</button>
-<br><br>
-<button class="btn btn-outline btn-sm" onclick="showPage('accueil')">← Retour</button>
-</div>
-</div>
-</div>
+<!-- PAGE : SAISIE -->
 
-<!-- ══════════════════════════════════════════════
-ÉCRAN 3 — SAISIE AGRICULTEUR
-══════════════════════════════════════════════ -->
+<!-- ═══════════════════════════════════════════ -->
 
-<div id="screen-saisie" style="display:none">
-<div class="screen">
-<div class="page-header">
-<h2>🌴 Saisie de saison</h2>
-<p>Vos données seront envoyées à l'administrateur</p>
-</div>
+<div id="page-saisie" class="page active">
+  <div class="page-header">
+    <h2>🌴 Estimation coût de production</h2>
+    <p>Dattes — Oasis du Sud Tunisien · Nouvelle saisie</p>
+    <p>Saisissez vos données réelles de production</p>
+  </div>
+
+  <div class="card">
+    <div class="card-title">📅 Identification</div>
+    <div class="row2">
+      <div class="field">
+        <label>Année</label>
+        <input type="number" id="f_annee" value="2024" min="2000" max="2099">
+      </div>
+      <div class="field">
+        <label>Mode culture</label>
+        <select id="f_mode">
+          <option value="bio">🌱 Bio certifié</option>
+          <option value="conv">🌾 Conventionnel</option>
+          <option value="trans">🔄 Transition</option>
+        </select>
+      </div>
+    </div>
+    <div class="row2">
+      <div class="field">
+        <label>Exploitation / Nom</label>
+        <input type="text" id="f_nom" placeholder="Ex: Ferme Ben Ali">
+      </div>
+      <div class="field">
+        <label>Région</label>
+        <input type="text" id="f_region" placeholder="Ex: Tozeur">
+      </div>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-title">🌳 Production</div>
+    <div class="row2">
+      <div class="field">
+        <label>Surface (ha)</label>
+        <input type="number" id="f_surface" placeholder="0.00" step="0.1" min="0">
+        <div class="unit">Hectares de palmeraie</div>
+      </div>
+      <div class="field">
+        <label>Nb palmiers</label>
+        <input type="number" id="f_palmiers" placeholder="0" min="0">
+        <div class="unit">Palmiers productifs</div>
+      </div>
+    </div>
+    <div class="row2">
+      <div class="field">
+        <label>Production totale (kg)</label>
+        <input type="number" id="f_production" placeholder="0" min="0" oninput="calcLive()">
+        <div class="unit">kg récoltés cette saison</div>
+      </div>
+      <div class="field">
+        <label>Pertes & déchets (kg)</label>
+        <input type="number" id="f_pertes" placeholder="0" min="0" oninput="calcLive()">
+        <div class="unit">kg non commercialisés</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-title">💸 Charges (DT)</div>
+    <div class="row2">
+      <div class="field">
+        <label>Main d'œuvre totale</label>
+        <input type="number" id="f_mo" placeholder="0" min="0" oninput="calcLive()">
+        <div class="unit">Pollinisation + récolte + entretien</div>
+      </div>
+      <div class="field">
+        <label>Intrants agricoles</label>
+        <input type="number" id="f_intrants" placeholder="0" min="0" oninput="calcLive()">
+        <div class="unit">Compost, engrais, traitements</div>
+      </div>
+    </div>
+    <div class="row2">
+      <div class="field">
+        <label>Eau & irrigation</label>
+        <input type="number" id="f_eau" placeholder="0" min="0" oninput="calcLive()">
+        <div class="unit">DT/saison</div>
+      </div>
+      <div class="field">
+        <label>Récolte & tri</label>
+        <input type="number" id="f_recolte" placeholder="0" min="0" oninput="calcLive()">
+        <div class="unit">Main d'œuvre spécifique récolte</div>
+      </div>
+    </div>
+    <div class="row2">
+      <div class="field">
+        <label>Transport</label>
+        <input type="number" id="f_transport" placeholder="0" min="0" oninput="calcLive()">
+        <div class="unit">Vers station/marché</div>
+      </div>
+      <div class="field">
+        <label>Certification bio</label>
+        <input type="number" id="f_cert" placeholder="0" min="0" oninput="calcLive()">
+        <div class="unit">Audit ONAB + labels (si applicable)</div>
+      </div>
+    </div>
+    <div class="row2">
+      <div class="field">
+        <label>Amortissement matériel</label>
+        <input type="number" id="f_amort" placeholder="0" min="0" oninput="calcLive()">
+        <div class="unit">Quote-part annuelle</div>
+      </div>
+      <div class="field">
+        <label>Autres charges</label>
+        <input type="number" id="f_autres" placeholder="0" min="0" oninput="calcLive()">
+        <div class="unit">Assurance, taxes, divers</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-title">💰 Prix de vente</div>
+    <div class="row2">
+      <div class="field">
+        <label>Prix vente réel (DT/kg)</label>
+        <input type="number" id="f_pv" placeholder="0.00" step="0.01" min="0" oninput="calcLive()">
+        <div class="unit">Prix obtenu à la vente</div>
+      </div>
+      <div class="field">
+        <label>Canal de vente</label>
+        <select id="f_canal">
+          <option value="gros">Marché de gros</option>
+          <option value="direct">Vente directe</option>
+          <option value="export">Export</option>
+          <option value="coop">Coopérative</option>
+          <option value="autre">Autre</option>
+        </select>
+      </div>
+    </div>
+    <div class="field">
+      <label>Notes / Observations</label>
+      <textarea id="f_notes" placeholder="Conditions météo, problèmes rencontrés, observations…"></textarea>
+    </div>
+  </div>
+
+  <!-- RÉSULTAT EN DIRECT -->
+
+  <div class="card" id="liveResult" style="border:2px solid var(--amber);display:none">
+    <div class="card-title" style="color:var(--gold)">⚡ Calcul en direct</div>
 
 ```
-<div class="card">
-<div class="card-title">📅 Identification</div>
-<div class="row2">
-<div class="field"><label>Année</label><input type="number" id="f_annee" value="2024" min="2000" max="2099"></div>
-<div class="field"><label>Mode culture</label>
-<select id="f_mode">
-<option value="bio">🌱 Bio certifié</option>
-<option value="conv">🌾 Conventionnel</option>
-<option value="trans">🔄 Transition</option>
-</select>
-</div>
-</div>
-<div class="row2">
-<div class="field"><label>Votre nom / exploitation</label><input type="text" id="f_nom" placeholder="Ex: Ferme Ben Ali"></div>
-<div class="field"><label>Région</label><input type="text" id="f_region" placeholder="Ex: Tozeur"></div>
-</div>
+<!-- FORMULE VISUELLE -->
+<div style="background:var(--sand);border-radius:12px;padding:12px 14px;margin-bottom:14px;font-size:0.78rem;color:var(--muted);line-height:2">
+  <span style="color:var(--brown);font-weight:600">( <span id="f_show_prod">0</span> kg − <span id="f_show_pertes">0</span> kg ) × <span id="f_show_pv">0</span> DT/kg − <span id="f_show_charges">0</span> DT</span><br>
+  <span style="font-size:0.7rem">= (Prod. nette) × Prix unitaire − Total charges</span>
 </div>
 
-<div class="card">
-<div class="card-title">🌳 Production</div>
-<div class="row2">
-<div class="field"><label>Surface (ha)</label><input type="number" id="f_surface" placeholder="0.00" step="0.1" min="0"></div>
-<div class="field"><label>Nb palmiers</label><input type="number" id="f_palmiers" placeholder="0" min="0"></div>
-</div>
-<div class="row2">
-<div class="field"><label>Production (kg)</label><input type="number" id="f_production" placeholder="0" min="0" oninput="calcLive()"><div class="unit">kg récoltés</div></div>
-<div class="field"><label>Pertes (kg)</label><input type="number" id="f_pertes" placeholder="0" min="0" oninput="calcLive()"><div class="unit">kg non vendus</div></div>
-</div>
-</div>
-
-<div class="card">
-<div class="card-title">💸 Charges (DT)</div>
-<div class="row2">
-<div class="field"><label>Main d'œuvre</label><input type="number" id="f_mo" placeholder="0" min="0" oninput="calcLive()"></div>
-<div class="field"><label>Intrants</label><input type="number" id="f_intrants" placeholder="0" min="0" oninput="calcLive()"></div>
-</div>
-<div class="row2">
-<div class="field"><label>Eau & irrigation</label><input type="number" id="f_eau" placeholder="0" min="0" oninput="calcLive()"></div>
-<div class="field"><label>Récolte & tri</label><input type="number" id="f_recolte" placeholder="0" min="0" oninput="calcLive()"></div>
-</div>
-<div class="row2">
-<div class="field"><label>Transport</label><input type="number" id="f_transport" placeholder="0" min="0" oninput="calcLive()"></div>
-<div class="field"><label>Certification bio</label><input type="number" id="f_cert" placeholder="0" min="0" oninput="calcLive()"></div>
-</div>
-<div class="row2">
-<div class="field"><label>Amortissement</label><input type="number" id="f_amort" placeholder="0" min="0" oninput="calcLive()"></div>
-<div class="field"><label>Autres charges</label><input type="number" id="f_autres" placeholder="0" min="0" oninput="calcLive()"></div>
-</div>
-</div>
-
-<div class="card">
-<div class="card-title">💰 Prix de vente</div>
-<div class="row2">
-<div class="field"><label>Prix vente (DT/kg)</label><input type="number" id="f_pv" placeholder="0.00" step="0.01" min="0" oninput="calcLive()"></div>
-<div class="field"><label>Canal</label>
-<select id="f_canal">
-<option value="gros">Marché de gros</option>
-<option value="direct">Vente directe</option>
-<option value="export">Export</option>
-<option value="coop">Coopérative</option>
-<option value="autre">Autre</option>
-</select>
-</div>
-</div>
-<div class="field"><label>Notes</label><textarea id="f_notes" placeholder="Observations, conditions météo…"></textarea></div>
-</div>
-
-<!-- CALCUL EN DIRECT -->
-<div class="card" id="liveResult" style="border:2px solid var(--amber);display:none">
-<div class="card-title" style="color:var(--gold)">⚡ Calcul en direct</div>
 <div class="kpi-grid">
-<div class="kpi-box"><div class="kpi-val" id="live_cout" style="color:var(--terra)">—</div><div class="kpi-lbl">Coût revient</div><div class="kpi-unit">DT/kg</div></div>
-<div class="kpi-box"><div class="kpi-val" id="live_marge">—</div><div class="kpi-lbl">Marge</div><div class="kpi-unit">DT/kg</div></div>
-<div class="kpi-box"><div class="kpi-val" id="live_total" style="color:var(--brown)">—</div><div class="kpi-lbl">Total charges</div><div class="kpi-unit">DT</div></div>
-<div class="kpi-box"><div class="kpi-val" id="live_rdt" style="color:var(--gold)">—</div><div class="kpi-lbl">Rendement</div><div class="kpi-unit">kg/ha</div></div>
+  <div class="kpi-box">
+    <div class="kpi-val" id="live_net" style="color:var(--terra)">—</div>
+    <div class="kpi-lbl">Production nette</div>
+    <div class="kpi-unit">kg vendables</div>
+  </div>
+  <div class="kpi-box">
+    <div class="kpi-val" id="live_recette" style="color:var(--gold)">—</div>
+    <div class="kpi-lbl">Recette brute</div>
+    <div class="kpi-unit">DT</div>
+  </div>
+  <div class="kpi-box">
+    <div class="kpi-val" id="live_total" style="color:var(--brown)">—</div>
+    <div class="kpi-lbl">Total charges</div>
+    <div class="kpi-unit">DT</div>
+  </div>
+  <div class="kpi-box" style="grid-column:span 2" id="gainBox">
+    <div class="kpi-val" id="live_gain" style="font-size:2rem">—</div>
+    <div class="kpi-lbl">GAIN NET</div>
+    <div class="kpi-unit" id="live_gain_kg">DT total</div>
+  </div>
 </div>
 <div id="live_alert" class="alert" style="margin-bottom:0"></div>
-</div>
-
-<button id="btnSave" class="btn btn-primary btn-full" onclick="sauvegarder()">
-📤 Envoyer mes données
-</button>
-<br>
-<button class="btn btn-outline btn-full" style="margin-top:8px" onclick="showPage('accueil')">← Retour accueil</button>
 ```
 
-</div>
+  </div>
+
+  <button class="btn btn-primary btn-full" onclick="sauvegarder()" style="margin-top:4px">
+    💾 Sauvegarder cette saison
+  </button>
 </div>
 
-<!-- ══════════════════════════════════════════════
-ÉCRAN 4 — LOGIN ADMIN
-══════════════════════════════════════════════ -->
+<!-- ═══════════════════════════════════════════ -->
 
-<div id="screen-login-admin" style="display:none">
-<div class="screen">
-<div style="text-align:center;padding:40px 0 24px">
-<div style="font-size:2.5rem;margin-bottom:12px">🔐</div>
-<h2 style="font-family:'Syne',sans-serif;font-size:1.4rem;font-weight:800;color:var(--terra)">Espace administrateur</h2>
-<p style="font-size:0.78rem;color:var(--muted);margin-top:6px">Accès réservé à l'administrateur</p>
-</div>
-<div class="card">
-<div class="field"><label>Email</label><input type="email" id="adminEmail" placeholder="votre@email.com"></div>
-<div class="field"><label>Mot de passe</label><input type="password" id="adminPass" onkeydown="if(event.key==='Enter') loginAdmin()"></div>
-<div id="loginError" class="alert alert-danger" style="display:none"></div>
-<button class="btn btn-admin btn-full" onclick="loginAdmin()">Se connecter →</button>
-</div>
-<button class="btn btn-outline btn-full" onclick="showPage('accueil')">← Retour accueil</button>
-</div>
+<!-- PAGE : DONNÉES -->
+
+<!-- ═══════════════════════════════════════════ -->
+
+<div id="page-donnees" class="page">
+  <div class="page-header">
+    <h2>🗂 Base de Données</h2>
+    <p>Toutes vos saisons enregistrées</p>
+  </div>
+  <div id="listeSaisons"></div>
 </div>
 
-<!-- ══════════════════════════════════════════════
-ÉCRAN 5 — DASHBOARD ADMIN
-══════════════════════════════════════════════ -->
+<!-- ═══════════════════════════════════════════ -->
 
-<div id="screen-admin" style="display:none">
-<div class="screen">
-<div class="admin-header">
-<div>
-<h2>🌴 Dashboard Admin</h2>
-<p>Toutes les données des agriculteurs</p>
-</div>
-<button class="btn btn-danger btn-sm" onclick="logoutAdmin()">Déconnexion</button>
-</div>
+<!-- PAGE : RÉSULTATS -->
 
-```
-<div class="kpi-grid">
-<div class="kpi-box">
-<div class="kpi-val" id="totalEntrees" style="color:var(--terra)">—</div>
-<div class="kpi-lbl">Entrées totales</div>
-</div>
-<div class="kpi-box">
-<div class="kpi-val" style="color:var(--bio)">✓</div>
-<div class="kpi-lbl">Accès sécurisé</div>
-</div>
+<!-- ═══════════════════════════════════════════ -->
+
+<div id="page-resultats" class="page">
+  <div class="page-header">
+    <h2>📊 Résultats</h2>
+    <p>Analyse de vos données</p>
+  </div>
+  <div id="resultatsContent"></div>
 </div>
 
-<div style="display:flex;gap:8px;margin-bottom:14px">
-<button class="btn btn-primary btn-sm" onclick="chargerDonnees()">🔄 Actualiser</button>
-<button class="btn btn-gold btn-sm" onclick="exportCSV()">⬇ Export CSV</button>
+<!-- ═══════════════════════════════════════════ -->
+
+<!-- PAGE : COMPARAISON -->
+
+<!-- ═══════════════════════════════════════════ -->
+
+<div id="page-comparaison" class="page">
+  <div class="page-header">
+    <h2>⚖️ Bio vs Conventionnel</h2>
+    <p>Comparaison directe de vos données</p>
+  </div>
+  <div id="comparaisonContent"></div>
 </div>
 
-<div class="card">
-<div class="card-title">📋 Données reçues</div>
-<div class="table-wrap">
-<table>
-<thead>
-<tr><th>Année</th><th>Nom / Région</th><th>Mode</th><th>Production</th><th>Coût/kg</th><th>Marge/kg</th><th></th></tr>
-</thead>
-<tbody id="adminTableBody">
-<tr><td colspan="7" style="text-align:center;color:var(--muted);padding:20px">Cliquez sur Actualiser</td></tr>
-</tbody>
-</table>
-</div>
-</div>
-```
+<!-- ═══════════════════════════════════════════ -->
 
+<!-- PAGE : EXPORT -->
+
+<!-- ═══════════════════════════════════════════ -->
+
+<div id="page-export" class="page">
+  <div class="page-header">
+    <h2>💾 Export / Import</h2>
+    <p>Sauvegardez ou partagez vos données</p>
+  </div>
+
+  <div class="card">
+    <div class="card-title">📤 Exporter</div>
+    <p style="font-size:.8rem;color:var(--muted);margin-bottom:12px">Téléchargez toutes vos données en JSON ou CSV.</p>
+    <div style="display:flex;gap:8px">
+      <button class="btn btn-primary btn-sm" onclick="exportJSON()">⬇ JSON</button>
+      <button class="btn btn-gold btn-sm" onclick="exportCSV()">⬇ CSV</button>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-title">📥 Importer JSON</div>
+    <div class="field">
+      <label>Coller vos données JSON</label>
+      <textarea id="importData" placeholder='[{"annee":2024,...}]' style="min-height:100px;font-size:.72rem"></textarea>
+    </div>
+    <button class="btn btn-outline btn-sm" onclick="importJSON()">↑ Importer</button>
+  </div>
+
+  <div class="card">
+    <div class="card-title">🗑 Réinitialiser</div>
+    <p style="font-size:.8rem;color:var(--muted);margin-bottom:12px">Supprime toutes les données. Action irréversible.</p>
+    <button class="btn btn-danger btn-sm" onclick="resetAll()">⚠ Tout effacer</button>
+  </div>
 </div>
+
+<!-- MODAL DÉTAIL -->
+
+<div class="modal-overlay" id="modalOverlay" onclick="closeModal(event)">
+  <div class="modal" id="modalContent"></div>
 </div>
 
 <!-- TOAST -->
@@ -570,23 +456,489 @@ onkeydown="if(event.key==='Enter') verifierCode()">
 <div class="toast" id="toast"></div>
 
 <script>
-// Correction affichage erreurs inline
-document.getElementById('loginError') && document.getElementById('loginError').addEventListener('DOMContentLoaded',()=>{});
-// Afficher les erreurs correctement (pas display:none par défaut dans le style inline)
-function showError(id, msg) {
-const el = document.getElementById(id);
-if (!el) return;
-el.textContent = msg;
-el.style.display = msg ? 'block' : 'none';
+// ─── DB ───────────────────────────────────────
+const DB_KEY = 'deglet_db';
+
+function getDB() {
+  try { return JSON.parse(localStorage.getItem(DB_KEY)) || []; }
+  catch { return []; }
 }
-// Patch pour les erreurs de code et login
-const _origVerifier = window.verifierCode;
-window.verifierCode = () => {
-showError('codeError', '');
-_origVerifier && _origVerifier();
-};
+
+function saveDB(data) {
+  localStorage.setItem(DB_KEY, JSON.stringify(data));
+}
+
+function genId() {
+  return Date.now().toString(36) + Math.random().toString(36).slice(2,6);
+}
+
+// ─── NAV ───────────────────────────────────────
+function showPage(name) {
+  document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+  document.querySelectorAll('.nav-btn').forEach(b => b.classList.remove('active'));
+  document.getElementById('page-' + name).classList.add('active');
+  event.currentTarget.classList.add('active');
+  if (name === 'donnees') renderDonnees();
+  if (name === 'resultats') renderResultats();
+  if (name === 'comparaison') renderComparaison();
+}
+
+// ─── CALCUL EN DIRECT ────────────────────────
+function calcLive() {
+  const prod     = parseFloat(document.getElementById('f_production').value) || 0;
+  const pertes   = parseFloat(document.getElementById('f_pertes').value) || 0;
+  const mo       = parseFloat(document.getElementById('f_mo').value) || 0;
+  const intrants = parseFloat(document.getElementById('f_intrants').value) || 0;
+  const eau      = parseFloat(document.getElementById('f_eau').value) || 0;
+  const recolte  = parseFloat(document.getElementById('f_recolte').value) || 0;
+  const transport= parseFloat(document.getElementById('f_transport').value) || 0;
+  const cert     = parseFloat(document.getElementById('f_cert').value) || 0;
+  const amort    = parseFloat(document.getElementById('f_amort').value) || 0;
+  const autres   = parseFloat(document.getElementById('f_autres').value) || 0;
+  const pv       = parseFloat(document.getElementById('f_pv').value) || 0;
+
+  const totalCharges = mo + intrants + eau + recolte + transport + cert + amort + autres;
+  const netProd  = prod - pertes;           // Production nette (kg)
+  const recette  = netProd * pv;            // Recette brute (DT)
+  const gain     = recette - totalCharges;  // GAIN NET = recette - charges
+  const gainKg   = netProd > 0 ? gain / netProd : 0; // Gain par kg
+
+  const div = document.getElementById('liveResult');
+
+  if (totalCharges > 0 || prod > 0) {
+    div.style.display = 'block';
+
+    // Formule visuelle
+    document.getElementById('f_show_prod').textContent    = prod.toLocaleString();
+    document.getElementById('f_show_pertes').textContent  = pertes.toLocaleString();
+    document.getElementById('f_show_pv').textContent      = pv.toFixed(3);
+    document.getElementById('f_show_charges').textContent = totalCharges.toLocaleString();
+
+    document.getElementById('live_net').textContent     = netProd.toLocaleString() + ' kg';
+    document.getElementById('live_recette').textContent = recette.toFixed(2);
+    document.getElementById('live_total').textContent   = totalCharges.toFixed(2);
+
+    const gainEl = document.getElementById('live_gain');
+    gainEl.textContent = (gain >= 0 ? '+' : '') + gain.toFixed(2);
+    gainEl.style.color = gain >= 0 ? 'var(--bio)' : '#dc3545';
+    document.getElementById('gainBox').style.background = gain >= 0 ? 'rgba(90,158,58,0.08)' : 'rgba(220,53,69,0.08)';
+    document.getElementById('live_gain_kg').textContent = `DT total  ·  ${gainKg >= 0 ? '+' : ''}${gainKg.toFixed(3)} DT/kg`;
+
+    const alertEl = document.getElementById('live_alert');
+    if (pv === 0) {
+      alertEl.className = 'alert'; alertEl.textContent = '';
+    } else if (gain > 0) {
+      alertEl.className = 'alert alert-success';
+      alertEl.textContent = `✅ Bénéfice : vous gagnez ${gain.toFixed(2)} DT sur cette saison (${gainKg.toFixed(3)} DT par kg vendu)`;
+    } else {
+      alertEl.className = 'alert alert-info';
+      alertEl.textContent = `⚠️ Perte : vos charges (${totalCharges.toFixed(2)} DT) dépassent votre recette (${recette.toFixed(2)} DT) de ${Math.abs(gain).toFixed(2)} DT`;
+    }
+  } else {
+    div.style.display = 'none';
+  }
+}
+
+// ─── CALCULER UN ENREGISTREMENT ──────────────
+function calcRecord(r) {
+  const totalCharges = (r.mo||0)+(r.intrants||0)+(r.eau||0)+(r.recolte||0)+(r.transport||0)+(r.cert||0)+(r.amort||0)+(r.autres||0);
+  const netProd  = (r.production||0) - (r.pertes||0);
+  const recette  = netProd * (r.pv||0);
+  const gain     = recette - totalCharges;
+  const gainKg   = netProd > 0 ? gain / netProd : 0;
+  const rdt      = (r.surface||0) > 0 ? (r.production||0) / r.surface : 0;
+  return { totalCharges, netProd, recette, gain, gainKg, rdt };
+}
+
+// ─── SAUVEGARDER ─────────────────────────────
+function sauvegarder() {
+  const annee  = document.getElementById('f_annee').value;
+  const mode   = document.getElementById('f_mode').value;
+  const nom    = document.getElementById('f_nom').value || 'Sans nom';
+  const region = document.getElementById('f_region').value || '';
+
+  if (!annee) { toast('⚠ Veuillez saisir une année'); return; }
+
+  const rec = {
+    id: genId(),
+    annee: parseInt(annee), mode, nom, region,
+    surface:    parseFloat(document.getElementById('f_surface').value)    || 0,
+    palmiers:   parseInt(document.getElementById('f_palmiers').value)     || 0,
+    production: parseFloat(document.getElementById('f_production').value) || 0,
+    pertes:     parseFloat(document.getElementById('f_pertes').value)     || 0,
+    mo:         parseFloat(document.getElementById('f_mo').value)         || 0,
+    intrants:   parseFloat(document.getElementById('f_intrants').value)   || 0,
+    eau:        parseFloat(document.getElementById('f_eau').value)        || 0,
+    recolte:    parseFloat(document.getElementById('f_recolte').value)    || 0,
+    transport:  parseFloat(document.getElementById('f_transport').value)  || 0,
+    cert:       parseFloat(document.getElementById('f_cert').value)       || 0,
+    amort:      parseFloat(document.getElementById('f_amort').value)      || 0,
+    autres:     parseFloat(document.getElementById('f_autres').value)     || 0,
+    pv:         parseFloat(document.getElementById('f_pv').value)         || 0,
+    canal:      document.getElementById('f_canal').value,
+    notes:      document.getElementById('f_notes').value || '',
+    createdAt:  new Date().toISOString()
+  };
+
+  const db = getDB();
+  db.push(rec);
+  saveDB(db);
+
+  // Reset form
+  ['f_surface','f_palmiers','f_production','f_pertes','f_mo','f_intrants','f_eau',
+   'f_recolte','f_transport','f_cert','f_amort','f_autres','f_pv','f_nom','f_region','f_notes']
+    .forEach(id => document.getElementById(id).value = '');
+  document.getElementById('liveResult').style.display = 'none';
+
+  toast('✅ Saison ' + annee + ' sauvegardée !');
+}
+
+// ─── RENDER DONNÉES ──────────────────────────
+function renderDonnees() {
+  const db = getDB();
+  const el = document.getElementById('listeSaisons');
+  if (db.length === 0) {
+    el.innerHTML = `<div class="empty"><div class="empty-icon">📭</div><p>Aucune donnée enregistrée.<br>Allez dans <strong>Saisie</strong> pour ajouter votre première saison.</p></div>`;
+    return;
+  }
+  const sorted = [...db].sort((a,b) => b.annee - a.annee);
+  el.innerHTML = sorted.map(r => {
+    const c = calcRecord(r);
+    const cls = r.mode === 'bio' ? 'bio-card' : r.mode === 'conv' ? 'conv-card' : '';
+    const badge = r.mode === 'bio' ? '<span class="sc-badge bio-badge">🌱 BIO</span>' :
+                  r.mode === 'conv' ? '<span class="sc-badge conv-badge">🌾 CONV</span>' :
+                  '<span class="sc-badge" style="background:#eee;color:#888">🔄 TRANS</span>';
+    return `
+    <div class="saison-card ${cls}">
+      <div class="sc-top">
+        <div class="sc-annee">${r.annee} — ${r.nom}</div>
+        ${badge}
+      </div>
+      <div class="sc-meta">${r.region ? r.region + ' · ' : ''}${r.surface} ha · ${r.production} kg récoltés</div>
+      <div class="sc-kpis">
+        <div class="sc-kpi">
+          <div class="sc-kpi-val">${c.netProd.toLocaleString()}</div>
+          <div class="sc-kpi-lbl">kg nets</div>
+        </div>
+        <div class="sc-kpi">
+          <div class="sc-kpi-val">${c.recette.toFixed(0)}</div>
+          <div class="sc-kpi-lbl">DT recette</div>
+        </div>
+        <div class="sc-kpi">
+          <div class="sc-kpi-val" style="color:${c.gain>=0?'var(--bio)':'#dc3545'}">${c.gain>=0?'+':''}${c.gain.toFixed(0)}</div>
+          <div class="sc-kpi-lbl">DT gain</div>
+        </div>
+      </div>
+      <div class="sc-actions">
+        <button class="btn btn-sm btn-outline" onclick="voirDetail('${r.id}')">🔍 Détail</button>
+        <button class="btn btn-sm btn-outline" onclick="dupliquer('${r.id}')">📋 Dupliquer</button>
+        <button class="btn btn-sm btn-danger" onclick="supprimer('${r.id}')">🗑</button>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+// ─── VOIR DÉTAIL ─────────────────────────────
+function voirDetail(id) {
+  const r = getDB().find(x => x.id === id);
+  if (!r) return;
+  const c = calcRecord(r);
+  const charges = [
+    ['Main d\'œuvre', r.mo], ['Intrants', r.intrants], ['Eau', r.eau],
+    ['Récolte & tri', r.recolte], ['Transport', r.transport],
+    ['Certification', r.cert], ['Amortissement', r.amort], ['Autres', r.autres]
+  ].filter(x => x[1] > 0);
+
+  const maxCharge = Math.max(...charges.map(x => x[1]));
+
+  document.getElementById('modalContent').innerHTML = `
+    <div class="modal-title">
+      ${r.annee} — ${r.nom}
+      <button class="modal-close" onclick="document.getElementById('modalOverlay').classList.remove('open')">✕</button>
+    </div>
+    <div class="kpi-grid" style="margin-bottom:16px">
+      <div class="kpi-box"><div class="kpi-val" style="color:var(--terra)">${c.netProd.toLocaleString()}</div><div class="kpi-lbl">Prod. nette</div><div class="kpi-unit">kg vendables</div></div>
+      <div class="kpi-box"><div class="kpi-val" style="color:var(--gold)">${c.recette.toFixed(2)}</div><div class="kpi-lbl">Recette</div><div class="kpi-unit">DT</div></div>
+      <div class="kpi-box"><div class="kpi-val">${c.totalCharges.toFixed(2)}</div><div class="kpi-lbl">Total charges</div><div class="kpi-unit">DT</div></div>
+      <div class="kpi-box"><div class="kpi-val" style="color:${c.gain>=0?'var(--bio)':'#dc3545'}">${c.gain>=0?'+':''}${c.gain.toFixed(2)}</div><div class="kpi-lbl">Gain net</div><div class="kpi-unit">DT · ${c.gainKg>=0?'+':''}${c.gainKg.toFixed(3)} DT/kg</div></div>
+    </div>
+    <div style="font-family:'Syne',sans-serif;font-size:.75rem;font-weight:700;letter-spacing:1.5px;text-transform:uppercase;color:var(--terra);margin-bottom:10px">Répartition des charges</div>
+    ${charges.map(([lbl,val]) => `
+      <div class="bar-row">
+        <div class="bar-label"><span>${lbl}</span><span>${val.toFixed(0)} DT (${((val/c.totalCharges)*100).toFixed(0)}%)</span></div>
+        <div class="bar-track"><div class="bar-fill bar-bio" style="width:${(val/maxCharge*100).toFixed(1)}%"></div></div>
+      </div>
+    `).join('')}
+    ${r.notes ? `<div style="margin-top:14px;font-size:.78rem;color:var(--muted);background:var(--sand);padding:10px;border-radius:8px">${r.notes}</div>` : ''}
+  `;
+  document.getElementById('modalOverlay').classList.add('open');
+}
+
+function closeModal(e) {
+  if (e.target.id === 'modalOverlay') document.getElementById('modalOverlay').classList.remove('open');
+}
+
+// ─── DUPLIQUER ───────────────────────────────
+function dupliquer(id) {
+  const r = getDB().find(x => x.id === id);
+  if (!r) return;
+  Object.keys(r).forEach(k => {
+    const el = document.getElementById('f_' + k);
+    if (el) el.value = r[k];
+  });
+  document.getElementById('f_annee').value = r.annee + 1;
+  showPageDirect('saisie');
+  calcLive();
+  toast('📋 Données copiées — modifiez et sauvegardez');
+}
+
+function showPageDirect(name) {
+  document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+  document.querySelectorAll('.nav-btn').forEach(b => b.classList.remove('active'));
+  document.getElementById('page-' + name).classList.add('active');
+  document.querySelector('.nav-btn').classList.add('active');
+}
+
+// ─── SUPPRIMER ───────────────────────────────
+function supprimer(id) {
+  if (!confirm('Supprimer cet enregistrement ?')) return;
+  const db = getDB().filter(x => x.id !== id);
+  saveDB(db);
+  renderDonnees();
+  toast('🗑 Enregistrement supprimé');
+}
+
+// ─── RENDER RÉSULTATS ────────────────────────
+function renderResultats() {
+  const db = getDB();
+  const el = document.getElementById('resultatsContent');
+  if (db.length === 0) {
+    el.innerHTML = `<div class="empty"><div class="empty-icon">📊</div><p>Aucune donnée.<br>Commencez par saisir vos données.</p></div>`;
+    return;
+  }
+
+  const calcs = db.map(r => ({ ...r, ...calcRecord(r) }));
+  const avgGain    = calcs.reduce((s,r) => s + r.gain, 0) / calcs.length;
+  const avgGainKg  = calcs.reduce((s,r) => s + r.gainKg, 0) / calcs.length;
+  const totalProd  = calcs.reduce((s,r) => s + (r.production||0), 0);
+  const bestGain   = calcs.reduce((a,b) => a.gain > b.gain ? a : b);
+
+  let html = `
+  <div class="kpi-grid">
+    <div class="kpi-box"><div class="kpi-val" style="color:${avgGain>=0?'var(--bio)':'#dc3545'}">${avgGain>=0?'+':''}${avgGain.toFixed(0)}</div><div class="kpi-lbl">Gain moyen</div><div class="kpi-unit">DT/saison</div></div>
+    <div class="kpi-box"><div class="kpi-val" style="color:${avgGainKg>=0?'var(--bio)':'#dc3545'}">${avgGainKg>=0?'+':''}${avgGainKg.toFixed(3)}</div><div class="kpi-lbl">Gain moyen</div><div class="kpi-unit">DT/kg</div></div>
+    <div class="kpi-box"><div class="kpi-val">${totalProd.toLocaleString()}</div><div class="kpi-lbl">Production totale</div><div class="kpi-unit">kg cumulés</div></div>
+    <div class="kpi-box"><div class="kpi-val">${db.length}</div><div class="kpi-lbl">Saisons</div><div class="kpi-unit">enregistrées</div></div>
+  </div>
+
+  ${bestGain ? `<div class="alert alert-success">🏆 Meilleure saison : <strong>${bestGain.annee} — ${bestGain.nom}</strong> avec +${bestGain.gain.toFixed(2)} DT de gain (+${bestGain.gainKg.toFixed(3)} DT/kg)</div>` : ''}
+
+  <div class="card">
+    <div class="card-title">📈 Gain net par saison</div>
+    ${calcs.sort((a,b) => a.annee - b.annee).map(r => {
+      const maxG = Math.max(...calcs.map(x => Math.abs(x.gain)));
+      return `
+      <div class="bar-row">
+        <div class="bar-label">
+          <span>${r.annee} · ${r.nom}</span>
+          <span style="color:${r.gain>=0?'var(--bio)':'#dc3545'};font-weight:600">${r.gain>=0?'+':''}${r.gain.toFixed(0)} DT</span>
+        </div>
+        <div class="bar-track">
+          <div class="bar-fill ${r.mode==='bio'?'bar-bio':'bar-conv'}" style="width:${maxG>0?(Math.abs(r.gain)/maxG*100).toFixed(1):0}%"></div>
+        </div>
+      </div>`;
+    }).join('')}
+  </div>
+
+  <div class="card">
+    <div class="card-title">📋 Tableau récapitulatif</div>
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr><th>Année</th><th>Mode</th><th>Prod. nette</th><th>Recette</th><th>Charges</th><th>Gain DT</th></tr>
+        </thead>
+        <tbody>
+          ${calcs.sort((a,b) => b.annee - a.annee).map(r => `
+          <tr>
+            <td><strong>${r.annee}</strong><br><span style="font-size:.65rem;color:var(--muted)">${r.nom}</span></td>
+            <td><span class="sc-badge ${r.mode==='bio'?'bio-badge':'conv-badge'}">${r.mode.toUpperCase()}</span></td>
+            <td>${r.netProd.toLocaleString()} kg</td>
+            <td>${r.recette.toFixed(0)} DT</td>
+            <td>${r.totalCharges.toFixed(0)} DT</td>
+            <td style="color:${r.gain>=0?'var(--bio)':'#dc3545'};font-weight:700">${r.gain>=0?'+':''}${r.gain.toFixed(0)}</td>
+          </tr>`).join('')}
+        </tbody>
+      </table>
+    </div>
+  </div>`;
+
+  el.innerHTML = html;
+}
+
+// ─── RENDER COMPARAISON ──────────────────────
+function renderComparaison() {
+  const db = getDB();
+  const el = document.getElementById('comparaisonContent');
+  const bios = db.filter(r => r.mode === 'bio');
+  const convs = db.filter(r => r.mode === 'conv');
+
+  if (bios.length === 0 || convs.length === 0) {
+    el.innerHTML = `<div class="empty"><div class="empty-icon">⚖️</div><p>Vous avez besoin d'au moins<br><strong>une saison bio ET une saison conventionnelle</strong><br>pour comparer.</p></div>`;
+    return;
+  }
+
+  const avg = arr => arr.reduce((s,x) => s+x, 0) / arr.length;
+
+  const bioCalcs  = bios.map(r => calcRecord(r));
+  const convCalcs = convs.map(r => calcRecord(r));
+
+  const bC = {
+    gain:      avg(bioCalcs.map(x => x.gain)),
+    gainKg:    avg(bioCalcs.map(x => x.gainKg)),
+    recette:   avg(bioCalcs.map(x => x.recette)),
+    rdt:       avg(bioCalcs.map(x => x.rdt)),
+    charges:   avg(bioCalcs.map(x => x.totalCharges)),
+    pv:        avg(bios.map(r => r.pv||0)),
+    mo:        avg(bios.map(r => r.mo||0)),
+    intrants:  avg(bios.map(r => r.intrants||0)),
+    eau:       avg(bios.map(r => r.eau||0)),
+    transport: avg(bios.map(r => r.transport||0)),
+    cert:      avg(bios.map(r => r.cert||0)),
+  };
+  const cC = {
+    gain:      avg(convCalcs.map(x => x.gain)),
+    gainKg:    avg(convCalcs.map(x => x.gainKg)),
+    recette:   avg(convCalcs.map(x => x.recette)),
+    rdt:       avg(convCalcs.map(x => x.rdt)),
+    charges:   avg(convCalcs.map(x => x.totalCharges)),
+    pv:        avg(convs.map(r => r.pv||0)),
+    mo:        avg(convs.map(r => r.mo||0)),
+    intrants:  avg(convs.map(r => r.intrants||0)),
+    eau:       avg(convs.map(r => r.eau||0)),
+    transport: avg(convs.map(r => r.transport||0)),
+    cert:      0,
+  };
+
+  function diffBadge(bio, conv) {
+    const d = ((bio - conv) / (conv||1) * 100).toFixed(0);
+    const cls = bio > conv ? 'diff-pos' : 'diff-neg';
+    return `<span class="comp-diff ${cls}">${bio>conv?'+':''}${d}%</span>`;
+  }
+
+  el.innerHTML = `
+  <div class="kpi-grid">
+    <div class="kpi-box highlight-bio">
+      <div class="kpi-val" style="color:${bC.gain>=0?'var(--bio)':'#dc3545'}">${bC.gain>=0?'+':''}${bC.gain.toFixed(0)}</div>
+      <div class="kpi-lbl">Gain net Bio</div>
+      <div class="kpi-unit">DT · moy. ${bios.length} saison(s)</div>
+    </div>
+    <div class="kpi-box highlight-conv">
+      <div class="kpi-val" style="color:${cC.gain>=0?'var(--conv)':'#dc3545'}">${cC.gain>=0?'+':''}${cC.gain.toFixed(0)}</div>
+      <div class="kpi-lbl">Gain net Conv.</div>
+      <div class="kpi-unit">DT · moy. ${convs.length} saison(s)</div>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-title">⚖️ Comparaison ligne par ligne</div>
+    <div style="display:flex;justify-content:flex-end;gap:16px;margin-bottom:8px;font-size:.68rem;font-weight:600;letter-spacing:1px;text-transform:uppercase">
+      <span style="color:var(--bio);min-width:80px;text-align:right">🌱 BIO</span>
+      <span style="color:var(--conv);min-width:80px;text-align:right">🌾 CONV</span>
+      <span style="min-width:70px;text-align:right;color:var(--muted)">ÉCART</span>
+    </div>
+    ${[
+      ['Recette brute (DT)', bC.recette.toFixed(0), cC.recette.toFixed(0), diffBadge(bC.recette, cC.recette)],
+      ['Total charges (DT)', bC.charges.toFixed(0), cC.charges.toFixed(0), diffBadge(bC.charges, cC.charges)],
+      ['Gain net (DT)', (bC.gain>=0?'+':'')+bC.gain.toFixed(0), (cC.gain>=0?'+':'')+cC.gain.toFixed(0), diffBadge(bC.gain, cC.gain)],
+      ['Gain par kg (DT/kg)', (bC.gainKg>=0?'+':'')+bC.gainKg.toFixed(3), (cC.gainKg>=0?'+':'')+cC.gainKg.toFixed(3), diffBadge(bC.gainKg, cC.gainKg)],
+      ['Prix vente (DT/kg)', bC.pv.toFixed(3), cC.pv.toFixed(3), diffBadge(bC.pv, cC.pv)],
+      ['Rendement (kg/ha)', Math.round(bC.rdt), Math.round(cC.rdt), diffBadge(bC.rdt, cC.rdt)],
+      ['Main d\'œuvre (DT)', bC.mo.toFixed(0), cC.mo.toFixed(0), diffBadge(bC.mo, cC.mo)],
+      ['Intrants (DT)', bC.intrants.toFixed(0), cC.intrants.toFixed(0), diffBadge(bC.intrants, cC.intrants)],
+      ['Eau (DT)', bC.eau.toFixed(0), cC.eau.toFixed(0), diffBadge(bC.eau, cC.eau)],
+      ['Transport (DT)', bC.transport.toFixed(0), cC.transport.toFixed(0), diffBadge(bC.transport, cC.transport)],
+      ['Certification (DT)', bC.cert.toFixed(0), '0', '—'],
+    ].map(([lbl, b, c, d]) => `
+      <div class="comp-row">
+        <div class="comp-label">${lbl}</div>
+        <div class="comp-bio">${b}</div>
+        <div class="comp-conv">${c}</div>
+        <div style="min-width:70px;text-align:right">${d}</div>
+      </div>
+    `).join('')}
+  </div>
+
+  <div class="card">
+    <div class="card-title">📊 Visualisation charges / kg</div>
+    ${[
+      ['Main d\'œuvre', bC.mo/Math.max(bC.charges,1), cC.mo/Math.max(cC.charges,1)],
+      ['Intrants', bC.intrants/Math.max(bC.charges,1), cC.intrants/Math.max(cC.charges,1)],
+      ['Eau', bC.eau/Math.max(bC.charges,1), cC.eau/Math.max(cC.charges,1)],
+      ['Transport', bC.transport/Math.max(bC.charges,1), cC.transport/Math.max(cC.charges,1)],
+      ['Certification', bC.cert/Math.max(bC.charges,1), 0],
+    ].map(([lbl, bp, cp]) => `
+      <div class="bar-row">
+        <div class="bar-label"><span>${lbl}</span><span style="font-size:.65rem">${(bp*100).toFixed(0)}% bio · ${(cp*100).toFixed(0)}% conv</span></div>
+        <div class="bar-track"><div class="bar-fill bar-bio" style="width:${(bp*100).toFixed(1)}%"></div></div>
+        <div class="bar-track"><div class="bar-fill bar-conv" style="width:${(cp*100).toFixed(1)}%"></div></div>
+      </div>
+    `).join('')}
+  </div>`;
+}
+
+// ─── EXPORT ──────────────────────────────────
+function exportJSON() {
+  const data = JSON.stringify(getDB(), null, 2);
+  download('deglet_nour_data.json', data, 'application/json');
+  toast('✅ Export JSON téléchargé');
+}
+
+function exportCSV() {
+  const db = getDB();
+  if (db.length === 0) { toast('⚠ Aucune donnée'); return; }
+  const keys = ['annee','mode','nom','region','surface','palmiers','production','pertes','mo','intrants','eau','recolte','transport','cert','amort','autres','pv','canal'];
+  const header = keys.join(';');
+  const rows = db.map(r => keys.map(k => r[k]||0).join(';'));
+  download('deglet_nour_data.csv', [header, ...rows].join('\n'), 'text/csv');
+  toast('✅ Export CSV téléchargé');
+}
+
+function download(filename, content, type) {
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(new Blob([content], {type}));
+  a.download = filename;
+  a.click();
+}
+
+function importJSON() {
+  try {
+    const data = JSON.parse(document.getElementById('importData').value);
+    if (!Array.isArray(data)) throw new Error();
+    saveDB(data);
+    document.getElementById('importData').value = '';
+    toast('✅ ' + data.length + ' enregistrement(s) importés');
+  } catch {
+    toast('❌ JSON invalide');
+  }
+}
+
+function resetAll() {
+  if (!confirm('Effacer TOUTES les données ? Action irréversible.')) return;
+  localStorage.removeItem(DB_KEY);
+  toast('🗑 Données effacées');
+}
+
+// ─── TOAST ───────────────────────────────────
+function toast(msg) {
+  const el = document.getElementById('toast');
+  el.textContent = msg;
+  el.classList.add('show');
+  setTimeout(() => el.classList.remove('show'), 2800);
+}
+
+// Init
+calcLive();
 </script>
 
 </body>
 </html>
-
