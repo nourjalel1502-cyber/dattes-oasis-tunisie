@@ -1,314 +1,317 @@
 <!DOCTYPE html>
-
 <html lang="fr">
 <head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Estimation coût de production — Dattes Sud Tunisien</title>
-<link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700;800&family=DM+Mono:wght@300;400;500&display=swap" rel="stylesheet">
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Estimation coût de production — Dattes Sud Tunisien</title>
+    <link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700;800&family=DM+Mono:wght@300;400;500&display=swap" rel="stylesheet">
 
-<!-- FIREBASE SDK -->
+    <!-- FIREBASE SDK -->
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
+        import { getFirestore, collection, addDoc, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
 
-<script type="module">
-import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js"
-import { getFirestore, collection, addDoc, serverTimestamp }
-from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js"
+        // CONFIGURATION FIREBASE
+        // REMPLACEZ LES VALEURS CI-DESSOUS PAR VOS PROPRES CLÉS FIREBASE
 
-const firebaseConfig = {
-apiKey: "AIzaSyBMWubhD-VQk8EPDubJbQSNfdXAwIXlNgk",
-authDomain: "production-dattes.firebaseapp.com",
-projectId: "production-dattes",
-storageBucket: "production-dattes.firebasestorage.app",
-messagingSenderId: "862022813229",
-appId: "1:862022813229:web:b48eda4a0e422f804e1aa4"
-};
+       const firebaseConfig = {
+           apiKey: "AIzaSyB82PZnxvbhX3YuqoslbQOEiRsoqGZClUM",
+           authDomain: "dattes-oasis.firebaseapp.com",
+           projectId: "dattes-oasis",
+           storageBucket: "dattes-oasis.firebasestorage.app",
+           messagingSenderId: "794362383685",
+           appId: "1:794362383685:web:21f8080b21b1074128c22c"
+        };
 
-const app = initializeApp(firebaseConfig);
-const db = getFirestore(app);
+        // Initialisation Firebase
+        const app = initializeApp(firebaseConfig);
+        const db = getFirestore(app);
 
-// ── SAUVEGARDER DANS FIREBASE ─────────────────────
-window.sauvegarder = async () => {
-const annee = document.getElementById('f_annee').value;
-if (!annee) { toast('⚠ Veuillez saisir une année'); return; }
-const v = id => parseFloat(document.getElementById(id).value) || 0;
+        // ── SAUVEGARDER DANS FIREBASE ─────────────────────
+        window.sauvegarder = async () => {
+            const annee = document.getElementById('f_annee').value;
+            if (!annee) { toast('⚠ Veuillez saisir une année'); return; }
+            
+            const v = id => parseFloat(document.getElementById(id).value) || 0;
 
-const rec = {
-annee: parseInt(annee),
-mode: document.getElementById('f_mode').value,
-nom: document.getElementById('f_nom').value || 'Sans nom',
-region: document.getElementById('f_region').value || '',
-surface: v('f_surface'),
-palmiers: parseInt(document.getElementById('f_palmiers').value) || 0,
-production: v('f_production'),
-pertes: v('f_pertes'),
-mo: v('f_mo'),
-intrants: v('f_intrants'),
-eau: v('f_eau'),
-recolte: v('f_recolte'),
-transport: v('f_transport'),
-cert: v('f_cert'),
-amort: v('f_amort'),
-autres: v('f_autres'),
-pv: v('f_pv'),
-canal: document.getElementById('f_canal').value,
-notes: document.getElementById('f_notes').value || '',
-createdAt: serverTimestamp()
-};
+            const rec = {
+                annee: parseInt(annee),
+                mode: document.getElementById('f_mode').value,
+                nom: document.getElementById('f_nom').value || 'Sans nom',
+                region: document.getElementById('f_region').value || '',
+                surface: v('f_surface'),
+                palmiers: parseInt(document.getElementById('f_palmiers').value) || 0,
+                production: v('f_production'),
+                pertes: v('f_pertes'),
+                mo: v('f_mo'),
+                intrants: v('f_intrants'),
+                eau: v('f_eau'),
+                recolte: v('f_recolte'),
+                transport: v('f_transport'),
+                cert: v('f_cert'),
+                amort: v('f_amort'),
+                autres: v('f_autres'),
+                pv: v('f_pv'),
+                canal: document.getElementById('f_canal').value,
+                notes: document.getElementById('f_notes').value || '',
+                createdAt: serverTimestamp()
+            };
 
-const btn = document.getElementById('btnSave');
-btn.textContent = '⏳ Envoi en cours…';
-btn.disabled = true;
+            const btn = document.getElementById('btnSave');
+            const originalText = btn.innerHTML;
+            btn.textContent = '⏳ Envoi en cours…';
+            btn.disabled = true;
 
-try {
-await addDoc(collection(db, 'saisons'), rec);
-// Reset formulaire
-['f_surface','f_palmiers','f_production','f_pertes','f_mo','f_intrants',
-'f_eau','f_recolte','f_transport','f_cert','f_amort','f_autres','f_pv',
-'f_nom','f_region','f_notes'].forEach(id => document.getElementById(id).value = '');
-document.getElementById('liveResult').style.display = 'none';
-toast('✅ Données envoyées avec succès !');
-} catch(e) {
-toast('❌ Erreur : ' + e.message);
-} finally {
-btn.textContent = '📤 Envoyer mes données';
-btn.disabled = false;
-}
-};
-</script>
+            try {
+                await addDoc(collection(db, 'saisons'), rec);
+                
+                // Reset formulaire
+                ['f_surface','f_palmiers','f_production','f_pertes','f_mo','f_intrants',
+                'f_eau','f_recolte','f_transport','f_cert','f_amort','f_autres','f_pv',
+                'f_nom','f_region','f_notes'].forEach(id => {
+                    const el = document.getElementById(id);
+                    if (el) el.value = '';
+                });
+                
+                const liveResult = document.getElementById('liveResult');
+                if (liveResult) liveResult.style.display = 'none';
+                
+                toast('✅ Données envoyées avec succès sur Firebase !');
+            } catch(e) {
+                console.error("Erreur Firebase:", e);
+                toast('❌ Erreur : ' + e.message);
+            } finally {
+                btn.innerHTML = originalText;
+                btn.disabled = false;
+            }
+        };
+    </script>
 
-<style>
-*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
-:root{
---bg:#f7f3ee;--card:#fff;--brown:#2c1810;--terra:#8b3a1a;
---gold:#c8860a;--amber:#e8a020;--bio:#5a9e3a;--conv:#c07820;
---muted:#9a8070;--border:#e8ddd0;--sand:#f0e8d8;
---shadow:rgba(44,24,16,0.10);
-}
-body{font-family:'DM Mono',monospace;background:var(--bg);color:var(--brown);min-height:100vh}
-.wrap{max-width:480px;margin:0 auto;padding:20px 16px 80px}
-.page-header{margin-bottom:24px}
-.page-header h2{font-family:'Syne',sans-serif;font-size:1.5rem;font-weight:800;color:var(--terra)}
-.page-header p{font-size:0.72rem;color:var(--muted);margin-top:4px}
-.card{background:var(--card);border:1px solid var(--border);border-radius:16px;padding:18px;margin-bottom:14px;box-shadow:0 2px 12px var(--shadow)}
-.card-title{font-family:'Syne',sans-serif;font-size:0.8rem;font-weight:700;letter-spacing:1.5px;text-transform:uppercase;color:var(--terra);margin-bottom:14px}
-.field{margin-bottom:12px}
-.field label{display:block;font-size:0.68rem;letter-spacing:1px;text-transform:uppercase;color:var(--muted);margin-bottom:5px;font-weight:500}
-.field input,.field select,.field textarea{width:100%;padding:10px 13px;background:var(--sand);border:1.5px solid var(--border);border-radius:10px;font-family:'DM Mono',monospace;font-size:0.88rem;color:var(--brown);outline:none;transition:border-color .2s}
-.field input:focus,.field select:focus{border-color:var(--amber);box-shadow:0 0 0 3px rgba(200,134,10,0.12)}
-.field textarea{resize:vertical;min-height:60px}
-.field .unit{font-size:0.68rem;color:var(--muted);margin-top:3px}
-.field select{appearance:none;background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6'%3E%3Cpath d='M0 0l5 6 5-6z' fill='%239a8070'/%3E%3C/svg%3E");background-repeat:no-repeat;background-position:right 12px center}
-.row2{display:grid;grid-template-columns:1fr 1fr;gap:10px}
-.btn{display:inline-flex;align-items:center;justify-content:center;gap:6px;padding:12px 20px;border:none;border-radius:10px;font-family:'Syne',sans-serif;font-size:0.82rem;font-weight:700;cursor:pointer;transition:all .2s}
-.btn-primary{background:var(--terra);color:#fff}.btn-primary:hover{background:var(--brown)}
-.btn-full{width:100%}
-.btn:disabled{opacity:.5;cursor:not-allowed}
-.kpi-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:14px}
-.kpi-box{background:var(--card);border:1px solid var(--border);border-radius:14px;padding:14px;text-align:center}
-.kpi-val{font-family:'Syne',sans-serif;font-size:1.5rem;font-weight:800;line-height:1}
-.kpi-lbl{font-size:0.6rem;color:var(--muted);letter-spacing:1px;text-transform:uppercase;margin-top:4px}
-.kpi-unit{font-size:0.68rem;color:var(--muted);margin-top:2px}
-.alert{padding:12px 14px;border-radius:10px;font-size:0.8rem;margin-bottom:0;line-height:1.5}
-.alert-success{background:rgba(90,158,58,0.12);border:1px solid rgba(90,158,58,0.3);color:var(--bio)}
-.alert-info{background:rgba(200,134,10,0.1);border:1px solid rgba(200,134,10,0.25);color:var(--gold)}
-.toast{position:fixed;bottom:30px;left:50%;transform:translateX(-50%) translateY(20px);background:var(--brown);color:#fff;padding:10px 20px;border-radius:20px;font-size:0.78rem;opacity:0;transition:all .3s;pointer-events:none;z-index:999;white-space:nowrap}
-.toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
-.success-banner{background:rgba(90,158,58,0.12);border:1px solid rgba(90,158,58,0.3);border-radius:12px;padding:14px;text-align:center;margin-bottom:14px;display:none}
-.success-banner p{color:var(--bio);font-size:0.82rem;font-weight:600}
-</style>
-
+    <style>
+        *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+        :root{
+            --bg:#f7f3ee;--card:#fff;--brown:#2c1810;--terra:#8b3a1a;
+            --gold:#c8860a;--amber:#e8a020;--bio:#5a9e3a;--conv:#c07820;
+            --muted:#9a8070;--border:#e8ddd0;--sand:#f0e8d8;
+            --shadow:rgba(44,24,16,0.10);
+        }
+        body{font-family:'DM Mono',monospace;background:var(--bg);color:var(--brown);min-height:100vh}
+        .wrap{max-width:480px;margin:0 auto;padding:20px 16px 80px}
+        .page-header{margin-bottom:24px}
+        .page-header h2{font-family:'Syne',sans-serif;font-size:1.5rem;font-weight:800;color:var(--terra)}
+        .page-header p{font-size:0.72rem;color:var(--muted);margin-top:4px}
+        .card{background:var(--card);border:1px solid var(--border);border-radius:16px;padding:18px;margin-bottom:14px;box-shadow:0 2px 12px var(--shadow)}
+        .card-title{font-family:'Syne',sans-serif;font-size:0.8rem;font-weight:700;letter-spacing:1.5px;text-transform:uppercase;color:var(--terra);margin-bottom:14px}
+        .field{margin-bottom:12px}
+        .field label{display:block;font-size:0.68rem;letter-spacing:1px;text-transform:uppercase;color:var(--muted);margin-bottom:5px;font-weight:500}
+        .field input,.field select,.field textarea{width:100%;padding:10px 13px;background:var(--sand);border:1.5px solid var(--border);border-radius:10px;font-family:'DM Mono',monospace;font-size:0.88rem;color:var(--brown);outline:none;transition:border-color .2s}
+        .field input:focus,.field select:focus{border-color:var(--amber);box-shadow:0 0 0 3px rgba(200,134,10,0.12)}
+        .field textarea{resize:vertical;min-height:60px}
+        .field .unit{font-size:0.68rem;color:var(--muted);margin-top:3px}
+        .field select{appearance:none;background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6'%3E%3Cpath d='M0 0l5 6 5-6z' fill='%239a8070'/%3E%3C/svg%3E");background-repeat:no-repeat;background-position:right 12px center}
+        .row2{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+        .btn{display:inline-flex;align-items:center;justify-content:center;gap:6px;padding:12px 20px;border:none;border-radius:10px;font-family:'Syne',sans-serif;font-size:0.82rem;font-weight:700;cursor:pointer;transition:all .2s}
+        .btn-primary{background:var(--terra);color:#fff}.btn-primary:hover{background:var(--brown)}
+        .btn-full{width:100%}
+        .btn:disabled{opacity:.5;cursor:not-allowed}
+        .kpi-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:14px}
+        .kpi-box{background:var(--card);border:1px solid var(--border);border-radius:14px;padding:14px;text-align:center}
+        .kpi-val{font-family:'Syne',sans-serif;font-size:1.5rem;font-weight:800;line-height:1}
+        .kpi-lbl{font-size:0.6rem;color:var(--muted);letter-spacing:1px;text-transform:uppercase;margin-top:4px}
+        .kpi-unit{font-size:0.68rem;color:var(--muted);margin-top:2px}
+        .alert{padding:12px 14px;border-radius:10px;font-size:0.8rem;margin-bottom:0;line-height:1.5}
+        .alert-success{background:rgba(90,158,58,0.12);border:1px solid rgba(90,158,58,0.3);color:var(--bio)}
+        .alert-info{background:rgba(200,134,10,0.1);border:1px solid rgba(200,134,10,0.25);color:var(--gold)}
+        .toast{position:fixed;bottom:30px;left:50%;transform:translateX(-50%) translateY(20px);background:var(--brown);color:#fff;padding:10px 20px;border-radius:20px;font-size:0.78rem;opacity:0;transition:all .3s;pointer-events:none;z-index:999;white-space:nowrap}
+        .toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
+    </style>
 </head>
 <body>
-<div class="wrap">
+    <div class="wrap">
+        <div class="page-header">
+            <h2>🌴 Saisie de production</h2>
+            <p>Dattes — Oasis du Sud Tunisien</p>
+            <p>Vos données seront enregistrées sur Firebase</p>
+        </div>
 
-<div class="page-header">
-<h2>🌴 Saisie de production</h2>
-<p>Dattes — Oasis du Sud Tunisien</p>
-<p>Vos données seront enregistrées automatiquement</p>
-</div>
+        <!-- IDENTIFICATION -->
+        <div class="card">
+            <div class="card-title">📅 Identification</div>
+            <div class="row2">
+                <div class="field">
+                    <label>Année</label>
+                    <input type="number" id="f_annee" value="2024" min="2000" max="2099">
+                </div>
+                <div class="field">
+                    <label>Mode culture</label>
+                    <select id="f_mode">
+                        <option value="bio">🌱 Bio certifié</option>
+                        <option value="conv">🌾 Conventionnel</option>
+                        <option value="trans">🔄 Transition</option>
+                    </select>
+                </div>
+            </div>
+            <div class="row2">
+                <div class="field">
+                    <label>Nom / Exploitation</label>
+                    <input type="text" id="f_nom" placeholder="Ex: Ferme Ben Ali">
+                </div>
+                <div class="field">
+                    <label>Région</label>
+                    <input type="text" id="f_region" placeholder="Ex: Tozeur">
+                </div>
+            </div>
+        </div>
 
-<!-- IDENTIFICATION -->
+        <!-- PRODUCTION -->
+        <div class="card">
+            <div class="card-title">🌳 Production</div>
+            <div class="row2">
+                <div class="field">
+                    <label>Surface (ha)</label>
+                    <input type="number" id="f_surface" placeholder="0.00" step="0.1" min="0">
+                    <div class="unit">Hectares</div>
+                </div>
+                <div class="field">
+                    <label>Nb palmiers</label>
+                    <input type="number" id="f_palmiers" placeholder="0" min="0">
+                    <div class="unit">Productifs</div>
+                </div>
+            </div>
+            <div class="row2">
+                <div class="field">
+                    <label>Production (kg)</label>
+                    <input type="number" id="f_production" placeholder="0" min="0" oninput="calcLive()">
+                    <div class="unit">kg récoltés</div>
+                </div>
+                <div class="field">
+                    <label>Pertes (kg)</label>
+                    <input type="number" id="f_pertes" placeholder="0" min="0" oninput="calcLive()">
+                    <div class="unit">kg non vendus</div>
+                </div>
+            </div>
+        </div>
 
-<div class="card">
-<div class="card-title">📅 Identification</div>
-<div class="row2">
-<div class="field">
-<label>Année</label>
-<input type="number" id="f_annee" value="2024" min="2000" max="2099">
-</div>
-<div class="field">
-<label>Mode culture</label>
-<select id="f_mode">
-<option value="bio">🌱 Bio certifié</option>
-<option value="conv">🌾 Conventionnel</option>
-<option value="trans">🔄 Transition</option>
-</select>
-</div>
-</div>
-<div class="row2">
-<div class="field">
-<label>Nom / Exploitation</label>
-<input type="text" id="f_nom" placeholder="Ex: Ferme Ben Ali">
-</div>
-<div class="field">
-<label>Région</label>
-<input type="text" id="f_region" placeholder="Ex: Tozeur">
-</div>
-</div>
-</div>
+        <!-- CHARGES -->
+        <div class="card">
+            <div class="card-title">💸 Charges (DT)</div>
+            <div class="row2">
+                <div class="field"><label>Main d'œuvre</label><input type="number" id="f_mo" placeholder="0" min="0" oninput="calcLive()"></div>
+                <div class="field"><label>Intrants</label><input type="number" id="f_intrants" placeholder="0" min="0" oninput="calcLive()"><div class="unit">Compost, engrais…</div></div>
+            </div>
+            <div class="row2">
+                <div class="field"><label>Eau & irrigation</label><input type="number" id="f_eau" placeholder="0" min="0" oninput="calcLive()"></div>
+                <div class="field"><label>Récolte & tri</label><input type="number" id="f_recolte" placeholder="0" min="0" oninput="calcLive()"></div>
+            </div>
+            <div class="row2">
+                <div class="field"><label>Transport</label><input type="number" id="f_transport" placeholder="0" min="0" oninput="calcLive()"></div>
+                <div class="field"><label>Certification bio</label><input type="number" id="f_cert" placeholder="0" min="0" oninput="calcLive()"><div class="unit">ONAB + labels</div></div>
+            </div>
+            <div class="row2">
+                <div class="field"><label>Amortissement</label><input type="number" id="f_amort" placeholder="0" min="0" oninput="calcLive()"><div class="unit">Quote-part annuelle</div></div>
+                <div class="field"><label>Autres charges</label><input type="number" id="f_autres" placeholder="0" min="0" oninput="calcLive()"></div>
+            </div>
+        </div>
 
-<!-- PRODUCTION -->
+        <!-- PRIX DE VENTE -->
+        <div class="card">
+            <div class="card-title">💰 Prix de vente</div>
+            <div class="row2">
+                <div class="field">
+                    <label>Prix vente (DT/kg)</label>
+                    <input type="number" id="f_pv" placeholder="0.00" step="0.01" min="0" oninput="calcLive()">
+                </div>
+                <div class="field">
+                    <label>Canal de vente</label>
+                    <select id="f_canal">
+                        <option value="gros">Marché de gros</option>
+                        <option value="direct">Vente directe</option>
+                        <option value="export">Export</option>
+                        <option value="coop">Coopérative</option>
+                        <option value="autre">Autre</option>
+                    </select>
+                </div>
+            </div>
+            <div class="field">
+                <label>Notes / Observations</label>
+                <textarea id="f_notes" placeholder="Conditions météo, observations…"></textarea>
+            </div>
+        </div>
 
-<div class="card">
-<div class="card-title">🌳 Production</div>
-<div class="row2">
-<div class="field">
-<label>Surface (ha)</label>
-<input type="number" id="f_surface" placeholder="0.00" step="0.1" min="0">
-<div class="unit">Hectares</div>
-</div>
-<div class="field">
-<label>Nb palmiers</label>
-<input type="number" id="f_palmiers" placeholder="0" min="0">
-<div class="unit">Productifs</div>
-</div>
-</div>
-<div class="row2">
-<div class="field">
-<label>Production (kg)</label>
-<input type="number" id="f_production" placeholder="0" min="0" oninput="calcLive()">
-<div class="unit">kg récoltés</div>
-</div>
-<div class="field">
-<label>Pertes (kg)</label>
-<input type="number" id="f_pertes" placeholder="0" min="0" oninput="calcLive()">
-<div class="unit">kg non vendus</div>
-</div>
-</div>
-</div>
+        <!-- CALCUL EN DIRECT -->
+        <div class="card" id="liveResult" style="border:2px solid var(--amber);display:none">
+            <div class="card-title" style="color:var(--gold)">⚡ Calcul en direct</div>
+            <div class="kpi-grid">
+                <div class="kpi-box">
+                    <div class="kpi-val" id="live_cout" style="color:var(--terra)">—</div>
+                    <div class="kpi-lbl">Coût revient</div>
+                    <div class="kpi-unit">DT/kg</div>
+                </div>
+                <div class="kpi-box">
+                    <div class="kpi-val" id="live_marge">—</div>
+                    <div class="kpi-lbl">Marge brute</div>
+                    <div class="kpi-unit">DT/kg</div>
+                </div>
+                <div class="kpi-box">
+                    <div class="kpi-val" id="live_total" style="color:var(--brown)">—</div>
+                    <div class="kpi-lbl">Total charges</div>
+                    <div class="kpi-unit">DT</div>
+                </div>
+                <div class="kpi-box">
+                    <div class="kpi-val" id="live_rdt" style="color:var(--gold)">—</div>
+                    <div class="kpi-lbl">Rendement</div>
+                    <div class="kpi-unit">kg/ha</div>
+                </div>
+            </div>
+            <div id="live_alert" class="alert"></div>
+        </div>
 
-<!-- CHARGES -->
+        <button id="btnSave" class="btn btn-primary btn-full" onclick="sauvegarder()">
+            📤 Envoyer mes données
+        </button>
+    </div>
 
-<div class="card">
-<div class="card-title">💸 Charges (DT)</div>
-<div class="row2">
-<div class="field"><label>Main d'œuvre</label><input type="number" id="f_mo" placeholder="0" min="0" oninput="calcLive()"></div>
-<div class="field"><label>Intrants</label><input type="number" id="f_intrants" placeholder="0" min="0" oninput="calcLive()"><div class="unit">Compost, engrais…</div></div>
-</div>
-<div class="row2">
-<div class="field"><label>Eau & irrigation</label><input type="number" id="f_eau" placeholder="0" min="0" oninput="calcLive()"></div>
-<div class="field"><label>Récolte & tri</label><input type="number" id="f_recolte" placeholder="0" min="0" oninput="calcLive()"></div>
-</div>
-<div class="row2">
-<div class="field"><label>Transport</label><input type="number" id="f_transport" placeholder="0" min="0" oninput="calcLive()"></div>
-<div class="field"><label>Certification bio</label><input type="number" id="f_cert" placeholder="0" min="0" oninput="calcLive()"><div class="unit">ONAB + labels</div></div>
-</div>
-<div class="row2">
-<div class="field"><label>Amortissement</label><input type="number" id="f_amort" placeholder="0" min="0" oninput="calcLive()"><div class="unit">Quote-part annuelle</div></div>
-<div class="field"><label>Autres charges</label><input type="number" id="f_autres" placeholder="0" min="0" oninput="calcLive()"></div>
-</div>
-</div>
+    <div class="toast" id="toast"></div>
 
-<!-- PRIX DE VENTE -->
+    <script>
+        function calcLive() {
+            const v = id => parseFloat(document.getElementById(id).value) || 0;
+            const prod = v('f_production'), pertes = v('f_pertes'), pv = v('f_pv'), surface = v('f_surface');
+            const totalCharges = v('f_mo')+v('f_intrants')+v('f_eau')+v('f_recolte')+
+                               v('f_transport')+v('f_cert')+v('f_amort')+v('f_autres');
+            
+            const div = document.getElementById('liveResult');
+            if (totalCharges > 0 || prod > 0) {
+                div.style.display = 'block';
+                const netProd = prod - pertes;
+                const cout = netProd > 0 ? totalCharges / netProd : 0;
+                const marge = pv - cout;
+                const rdt = surface > 0 ? prod / surface : 0;
+                
+                document.getElementById('live_cout').textContent = cout.toFixed(3);
+                document.getElementById('live_marge').textContent = (marge >= 0 ? '+' : '') + marge.toFixed(3);
+                document.getElementById('live_marge').style.color = marge >= 0 ? 'var(--bio)' : '#dc3545';
+                document.getElementById('live_total').textContent = totalCharges.toFixed(0);
+                document.getElementById('live_rdt').textContent = rdt > 0 ? Math.round(rdt) : '—';
+                
+                const a = document.getElementById('live_alert');
+                if (!cout) { a.className='alert'; a.textContent=''; }
+                else if (marge > 0) {
+                    a.className='alert alert-success';
+                    a.textContent=`✅ Rentable : +${marge.toFixed(3)} DT/kg (${((marge/cout)*100).toFixed(0)}%)`;
+                } else {
+                    a.className='alert alert-info';
+                    a.textContent=`⚠️ Déficitaire de ${Math.abs(marge).toFixed(3)} DT/kg`;
+                }
+            } else { div.style.display='none'; }
+        }
 
-<div class="card">
-<div class="card-title">💰 Prix de vente</div>
-<div class="row2">
-<div class="field">
-<label>Prix vente (DT/kg)</label>
-<input type="number" id="f_pv" placeholder="0.00" step="0.01" min="0" oninput="calcLive()">
-</div>
-<div class="field">
-<label>Canal de vente</label>
-<select id="f_canal">
-<option value="gros">Marché de gros</option>
-<option value="direct">Vente directe</option>
-<option value="export">Export</option>
-<option value="coop">Coopérative</option>
-<option value="autre">Autre</option>
-</select>
-</div>
-</div>
-<div class="field">
-<label>Notes / Observations</label>
-<textarea id="f_notes" placeholder="Conditions météo, observations…"></textarea>
-</div>
-</div>
-
-<!-- CALCUL EN DIRECT -->
-
-<div class="card" id="liveResult" style="border:2px solid var(--amber);display:none">
-<div class="card-title" style="color:var(--gold)">⚡ Calcul en direct</div>
-<div class="kpi-grid">
-<div class="kpi-box">
-<div class="kpi-val" id="live_cout" style="color:var(--terra)">—</div>
-<div class="kpi-lbl">Coût revient</div>
-<div class="kpi-unit">DT/kg</div>
-</div>
-<div class="kpi-box">
-<div class="kpi-val" id="live_marge">—</div>
-<div class="kpi-lbl">Marge brute</div>
-<div class="kpi-unit">DT/kg</div>
-</div>
-<div class="kpi-box">
-<div class="kpi-val" id="live_total" style="color:var(--brown)">—</div>
-<div class="kpi-lbl">Total charges</div>
-<div class="kpi-unit">DT</div>
-</div>
-<div class="kpi-box">
-<div class="kpi-val" id="live_rdt" style="color:var(--gold)">—</div>
-<div class="kpi-lbl">Rendement</div>
-<div class="kpi-unit">kg/ha</div>
-</div>
-</div>
-<div id="live_alert" class="alert"></div>
-</div>
-
-<button id="btnSave" class="btn btn-primary btn-full" onclick="sauvegarder()">
-📤 Envoyer mes données
-</button>
-
-</div><!-- /wrap -->
-
-<div class="toast" id="toast"></div>
-
-<script>
-function calcLive() {
-const v = id => parseFloat(document.getElementById(id).value) || 0;
-const prod = v('f_production'), pertes = v('f_pertes'), pv = v('f_pv'), surface = v('f_surface');
-const totalCharges = v('f_mo')+v('f_intrants')+v('f_eau')+v('f_recolte')+
-v('f_transport')+v('f_cert')+v('f_amort')+v('f_autres');
-const div = document.getElementById('liveResult');
-if (totalCharges > 0 || prod > 0) {
-div.style.display = 'block';
-const netProd = prod - pertes;
-const cout = netProd > 0 ? totalCharges / netProd : 0;
-const marge = pv - cout;
-const rdt = surface > 0 ? prod / surface : 0;
-document.getElementById('live_cout').textContent = cout.toFixed(3);
-document.getElementById('live_marge').textContent = (marge >= 0 ? '+' : '') + marge.toFixed(3);
-document.getElementById('live_marge').style.color = marge >= 0 ? 'var(--bio)' : '#dc3545';
-document.getElementById('live_total').textContent = totalCharges.toFixed(0);
-document.getElementById('live_rdt').textContent = rdt > 0 ? Math.round(rdt) : '—';
-const a = document.getElementById('live_alert');
-if (!cout) { a.className='alert'; a.textContent=''; }
-else if (marge > 0) {
-a.className='alert alert-success';
-a.textContent=`✅ Rentable : +${marge.toFixed(3)} DT/kg (${((marge/cout)*100).toFixed(0)}%)`;
-} else {
-a.className='alert alert-info';
-a.textContent=`⚠️ Déficitaire de ${Math.abs(marge).toFixed(3)} DT/kg`;
-}
-} else { div.style.display='none'; }
-}
-
-function toast(msg) {
-const el = document.getElementById('toast');
-el.textContent = msg;
-el.classList.add('show');
-setTimeout(() => el.classList.remove('show'), 3000);
-}
-</script>
-
+        function toast(msg) {
+            const el = document.getElementById('toast');
+            el.textContent = msg;
+            el.classList.add('show');
+            setTimeout(() => el.classList.remove('show'), 3000);
+        }
+    </script>
 </body>
 </html>
