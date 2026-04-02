@@ -1,0 +1,67 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<title>ADMIN - Export Excel</title>
+<script src="https://cdn.sheetjs.com/xlsx-0.20.1/package/dist/xlsx.full.min.js"></script>
+<style>
+body { font-family: sans-serif; background: #f4f4f4; display: flex; justify-content: center; align-items: center; height: 100vh; margin: 0; }
+.card { background: white; padding: 40px; border-radius: 20px; box-shadow: 0 10px 25px rgba(0,0,0,0.1); text-align: center; max-width: 400px; }
+button { background: #8b3a1a; color: white; border: none; padding: 15px 30px; border-radius: 10px; font-weight: bold; cursor: pointer; font-size: 16px; width: 100%; }
+button:hover { background: #2c1810; }
+#status { margin-top: 20px; font-size: 14px; color: #666; }
+</style>
+</head>
+<body>
+<div class="card">
+<h2>🛡️ Panel Admin</h2>
+<p>Cliquez ci-dessous pour télécharger toutes les données des agriculteurs.</p>
+<button id="btnExport" onclick="exporterExcel()">📊 EXPORTER EN EXCEL</button>
+<div id="status">Prêt pour l'exportation</div>
+</div>
+
+<script type="module">
+import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
+import { getFirestore, collection, getDocs, query, orderBy } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
+
+const firebaseConfig = {
+apiKey: "AIzaSyBMWubhD-VQk8EPDubJbQSNfdXAwIXlNgk",
+authDomain: "production-dattes.firebaseapp.com",
+projectId: "production-dattes",
+storageBucket: "production-dattes.firebasestorage.app",
+messagingSenderId: "862022813229",
+appId: "1:862022813229:web:b48eda4a0e422f804e1aa4"
+};
+
+const app = initializeApp(firebaseConfig);
+const db = getFirestore(app);
+
+window.exporterExcel = async () => {
+const btn = document.getElementById('btnExport');
+const status = document.getElementById('status');
+btn.disabled = true;
+status.textContent = "⏳ Chargement des données Firebase...";
+
+try {
+const querySnapshot = await getDocs(query(collection(db, "saisons"), orderBy("createdAt", "desc")));
+if (querySnapshot.empty) { status.textContent = "⚠ Aucune donnée trouvée."; btn.disabled = false; return; }
+
+const data = querySnapshot.docs.map(doc => {
+const d = doc.data();
+return { "Date": d.createdAt?.toDate().toLocaleString(), "Exploitation": d.nom, "Région": d.region, "Production (kg)": d.production, "Coût Revient (DT/kg)": d.coutRevient_DT_kg, "Statut": d.statut };
+});
+
+const ws = XLSX.utils.json_to_sheet(data);
+const wb = XLSX.utils.book_new();
+XLSX.utils.book_append_sheet(wb, ws, "Données");
+XLSX.writeFile(wb, "Export_Admin_Dattes.xlsx");
+status.textContent = "✅ Téléchargement réussi !";
+} catch (e) {
+status.textContent = "❌ Erreur : " + e.message;
+} finally { btn.disabled = false; }
+};
+</script>
+</body>
+</html>
+
+
