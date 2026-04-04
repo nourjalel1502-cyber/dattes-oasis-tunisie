@@ -1,20 +1,17 @@
 <!DOCTYPE html>
-
 <html lang="fr">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Admin — Dattes Sud Tunisien</title>
+<title>Admin — Dattes Oasis</title>
 <link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;700;800&family=DM+Mono:wght@300;400;500&display=swap" rel="stylesheet">
-<!-- SheetJS pour export Excel -->
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 
 <script type="module">
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
 import { getFirestore, collection, getDocs, deleteDoc, doc, query, orderBy }
-from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
+  from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
 
-// Your web app's Firebase configuration
 const firebaseConfig = {
   apiKey: "AIzaSyB82PZnxvbhX3YuqoslbQOEiRsoqGZClUM",
   authDomain: "dattes-oasis.firebaseapp.com",
@@ -24,213 +21,206 @@ const firebaseConfig = {
   appId: "1:794362383685:web:21f8080b21b1074128c22c"
 };
 
-// Initialize Firebase
 const app = initializeApp(firebaseConfig);
-const db = getFirestore(app);
+const db  = getFirestore(app);
 
-// ── MOT DE PASSE ADMIN ────────────────────────
-// Changez ce mot de passe !
-const ADMIN_PASSWORD = "jalel123";
+const ADMIN_PASSWORD = "dattes@admin2024";
 
-// ── VÉRIFICATION MOT DE PASSE ─────────────────
 window.verifierMDP = () => {
-const mdp = document.getElementById('mdpInput').value;
-if (mdp === ADMIN_PASSWORD) {
-document.getElementById('loginScreen').style.display = 'none';
-document.getElementById('adminScreen').style.display = 'block';
-chargerDonnees();
-} else {
-document.getElementById('mdpError').textContent = '❌ Mot de passe incorrect';
-}
+  const mdp = document.getElementById('mdpInput').value;
+  if (mdp === ADMIN_PASSWORD) {
+    document.getElementById('loginScreen').style.display = 'none';
+    document.getElementById('adminScreen').style.display = 'block';
+    chargerDonnees();
+  } else {
+    document.getElementById('mdpError').textContent = '❌ Mot de passe incorrect';
+  }
 };
 
-// ── CHARGER LES DONNÉES ───────────────────────
 let allData = [];
 
 window.chargerDonnees = async () => {
-document.getElementById('loadingMsg').style.display = 'block';
-document.getElementById('tableBody').innerHTML = '';
-try {
-const q = query(collection(db, 'saisons'), orderBy('createdAt', 'desc'));
-const snap = await getDocs(q);
-allData = [];
-snap.forEach(d => allData.push({ id: d.id, ...d.data() }));
-afficherStats();
-afficherTableau(allData);
-} catch(e) {
-alert('Erreur : ' + e.message);
-} finally {
-document.getElementById('loadingMsg').style.display = 'none';
-}
+  document.getElementById('loadingMsg').style.display = 'block';
+  document.getElementById('tableBody').innerHTML = '';
+  try {
+    const q    = query(collection(db, 'saisons'), orderBy('createdAt', 'desc'));
+    const snap = await getDocs(q);
+    allData = [];
+    snap.forEach(d => allData.push({ id: d.id, ...d.data() }));
+    afficherStats();
+    afficherTableau(allData);
+  } catch(e) {
+    alert('Erreur : ' + e.message);
+  } finally {
+    document.getElementById('loadingMsg').style.display = 'none';
+  }
 };
 
-// ── STATISTIQUES ──────────────────────────────
 function afficherStats() {
-const n = allData.length;
-document.getElementById('statTotal').textContent = n;
+  const n = allData.length;
+  document.getElementById('statTotal').textContent = n;
+  if (!n) return;
 
-if (n === 0) return;
+  const avgCout  = allData.reduce((s,r)=>s+(r.coutRevient_DT_kg||0),0)/n;
+  const avgMarge = allData.reduce((s,r)=>s+(r.margeBrute_DT_kg||0),0)/n;
+  const rentable = allData.filter(r=>r.statut==='rentable').length;
+  document.getElementById('statCout').textContent  = avgCout.toFixed(3)+' DT';
+  document.getElementById('statMarge').textContent = (avgMarge>=0?'+':'')+avgMarge.toFixed(3)+' DT';
+  document.getElementById('statMarge').style.color = avgMarge>=0?'var(--bio)':'#dc3545';
+  document.getElementById('statRentable').textContent = rentable+' / '+n;
 
-const avgCout = allData.reduce((s,r) => s + (r.coutRevient_DT_kg||0), 0) / n;
-const avgMarge = allData.reduce((s,r) => s + (r.margeBrute_DT_kg||0), 0) / n;
-const rentable = allData.filter(r => r.statut === 'rentable').length;
+  // ── PAR MODE DE CULTURE ──────────────────────
+  const modes = ['bio','conv','trans'];
+  const modeLabels = { bio:'🌱 Bio', conv:'🌾 Conventionnel', trans:'🔄 Transition' };
+  const modeHTML = modes.map(m => {
+    const arr = allData.filter(r=>r.mode===m);
+    if (!arr.length) return '';
+    const aC = (arr.reduce((s,r)=>s+(r.coutRevient_DT_kg||0),0)/arr.length).toFixed(3);
+    const aM = (arr.reduce((s,r)=>s+(r.margeBrute_DT_kg||0),0)/arr.length);
+    return `<div class="stat-row">
+      <span class="stat-row-label">${modeLabels[m]} <small>(${arr.length})</small></span>
+      <span style="color:var(--terra);font-weight:600">${aC} DT/kg</span>
+      <span style="color:${aM>=0?'var(--bio)':'#dc3545'};font-weight:600">${aM>=0?'+':''}${aM.toFixed(3)} DT/kg</span>
+    </div>`;
+  }).join('');
+  document.getElementById('statParMode').innerHTML = modeHTML || '<p class="no-data">Aucune donnée</p>';
 
-document.getElementById('statCout').textContent = avgCout.toFixed(3) + ' DT';
-document.getElementById('statMarge').textContent = (avgMarge >= 0 ? '+' : '') + avgMarge.toFixed(3) + ' DT';
-document.getElementById('statMarge').style.color = avgMarge >= 0 ? 'var(--bio)' : '#dc3545';
-document.getElementById('statRentable').textContent = rentable + ' / ' + n;
+  // ── PAR RÉGION ───────────────────────────────
+  const regions = [...new Set(allData.map(r=>r.region||'Non précisée'))].sort();
+  const regionHTML = regions.map(reg => {
+    const arr = allData.filter(r=>(r.region||'Non précisée')===reg);
+    const aC  = (arr.reduce((s,r)=>s+(r.coutRevient_DT_kg||0),0)/arr.length).toFixed(3);
+    const aM  = (arr.reduce((s,r)=>s+(r.margeBrute_DT_kg||0),0)/arr.length);
+    return `<div class="stat-row">
+      <span class="stat-row-label">📍 ${reg} <small>(${arr.length})</small></span>
+      <span style="color:var(--terra);font-weight:600">${aC} DT/kg</span>
+      <span style="color:${aM>=0?'var(--bio)':'#dc3545'};font-weight:600">${aM>=0?'+':''}${aM.toFixed(3)} DT/kg</span>
+    </div>`;
+  }).join('');
+  document.getElementById('statParRegion').innerHTML = regionHTML || '<p class="no-data">Aucune donnée</p>';
 }
 
-// ── TABLEAU ───────────────────────────────────
 function afficherTableau(data) {
-if (!data.length) {
-document.getElementById('tableBody').innerHTML =
-'<tr><td colspan="10" style="text-align:center;padding:20px;color:var(--muted)">Aucune donnée</td></tr>';
-return;
-}
-document.getElementById('tableBody').innerHTML = data.map(r => {
-const date = r.createdAt?.toDate ? r.createdAt.toDate().toLocaleDateString('fr-FR') : '—';
-const statutBadge = r.statut === 'rentable'
-? '<span class="badge badge-green">✅ Rentable</span>'
-: r.statut === 'déficitaire'
-? '<span class="badge badge-red">⚠️ Déficitaire</span>'
-: '<span class="badge badge-grey">—</span>';
-return `<tr>
-<td>${date}</td>
-<td><strong>${r.annee||'—'}</strong></td>
-<td>${r.nom||'—'}<br><small>${r.region||''}</small></td>
-<td><span class="badge ${r.mode==='bio'?'badge-bio':'badge-conv'}">${(r.mode||'—').toUpperCase()}</span></td>
-<td>${r.production||0} kg</td>
-<td style="color:var(--terra);font-weight:600">${(r.coutRevient_DT_kg||0).toFixed(3)}</td>
-<td style="color:${(r.margeBrute_DT_kg||0)>=0?'var(--bio)':'#dc3545'};font-weight:600">${(r.margeBrute_DT_kg||0)>=0?'+':''}${(r.margeBrute_DT_kg||0).toFixed(3)}</td>
-<td>${(r.rendement_kg_ha||0).toFixed(0)}</td>
-<td>${statutBadge}</td>
-<td><button class="btn btn-danger btn-xs" onclick="supprimerDoc('${r.id}')">🗑</button></td>
-</tr>`;
-}).join('');
+  if (!data.length) {
+    document.getElementById('tableBody').innerHTML =
+      '<tr><td colspan="10" style="text-align:center;padding:20px;color:var(--muted)">Aucune donnée</td></tr>';
+    return;
+  }
+  document.getElementById('tableBody').innerHTML = data.map(r => {
+    const date = r.createdAt?.toDate ? r.createdAt.toDate().toLocaleDateString('fr-FR') : '—';
+    const statutBadge = r.statut==='rentable'
+      ? '<span class="badge badge-green">✅ Rentable</span>'
+      : r.statut==='déficitaire'
+      ? '<span class="badge badge-red">⚠️ Déficitaire</span>'
+      : '<span class="badge badge-grey">—</span>';
+    return `<tr>
+      <td>${date}</td>
+      <td><strong>${r.annee||'—'}</strong></td>
+      <td>${r.nom||'—'}<br><small>${r.region||''}</small></td>
+      <td><span class="badge ${r.mode==='bio'?'badge-bio':'badge-conv'}">${(r.mode||'—').toUpperCase()}</span></td>
+      <td>${r.production||0} kg</td>
+      <td style="color:var(--terra);font-weight:600">${(r.coutRevient_DT_kg||0).toFixed(3)}</td>
+      <td style="color:${(r.margeBrute_DT_kg||0)>=0?'var(--bio)':'#dc3545'};font-weight:600">${(r.margeBrute_DT_kg||0)>=0?'+':''}${(r.margeBrute_DT_kg||0).toFixed(3)}</td>
+      <td>${(r.rendement_kg_ha||0).toFixed(0)}</td>
+      <td>${statutBadge}</td>
+      <td><button class="btn btn-danger btn-xs" onclick="supprimerDoc('${r.id}')">🗑</button></td>
+    </tr>`;
+  }).join('');
 }
 
-// ── FILTRER ───────────────────────────────────
 window.filtrer = () => {
-const mode = document.getElementById('filtreMode').value;
-const annee = document.getElementById('filtreAnnee').value;
-const search = document.getElementById('filtreSearch').value.toLowerCase();
-
-const filtered = allData.filter(r => {
-const okMode = !mode || r.mode === mode;
-const okAnnee = !annee || String(r.annee) === annee;
-const okSearch= !search || (r.nom||'').toLowerCase().includes(search)
-|| (r.region||'').toLowerCase().includes(search);
-return okMode && okAnnee && okSearch;
-});
-afficherTableau(filtered);
+  const mode   = document.getElementById('filtreMode').value;
+  const annee  = document.getElementById('filtreAnnee').value;
+  const search = document.getElementById('filtreSearch').value.toLowerCase();
+  afficherTableau(allData.filter(r =>
+    (!mode  || r.mode===mode) &&
+    (!annee || String(r.annee)===annee) &&
+    (!search || (r.nom||'').toLowerCase().includes(search) || (r.region||'').toLowerCase().includes(search))
+  ));
 };
 
-// ── EXPORT EXCEL ──────────────────────────────
 window.exportExcel = () => {
-if (!allData.length) { alert('Aucune donnée à exporter'); return; }
+  if (!allData.length) { alert('Aucune donnée à exporter'); return; }
+  const colonnes = [
+    'Date saisie','Année','Nom / Exploitation','Région','Mode culture','Canal vente',
+    'Surface (ha)','Nb palmiers','Production (kg)','Pertes (kg)','Production nette (kg)',
+    "Main d'œuvre (DT)",'Intrants (DT)','Eau (DT)','Récolte (DT)',
+    'Transport (DT)','Certification (DT)','Amortissement (DT)','Autres charges (DT)',
+    'Total charges (DT)','Prix vente (DT/kg)',
+    'Coût revient (DT/kg)','Marge brute (DT/kg)','Taux marge (%)','Rendement (kg/ha)','Statut','Notes'
+  ];
+  const lignes = allData.map(r => ({
+    'Date saisie':           r.createdAt?.toDate ? r.createdAt.toDate().toLocaleDateString('fr-FR') : '',
+    'Année':                 r.annee||'',
+    'Nom / Exploitation':    r.nom||'',
+    'Région':                r.region||'',
+    'Mode culture':          r.mode||'',
+    'Canal vente':           r.canal||'',
+    'Surface (ha)':          r.surface||0,
+    'Nb palmiers':           r.palmiers||0,
+    'Production (kg)':       r.production||0,
+    'Pertes (kg)':           r.pertes||0,
+    'Production nette (kg)': r.netProd||0,
+    "Main d'œuvre (DT)":     r.mo||0,
+    'Intrants (DT)':         r.intrants||0,
+    'Eau (DT)':              r.eau||0,
+    'Récolte (DT)':          r.recolte||0,
+    'Transport (DT)':        r.transport||0,
+    'Certification (DT)':    r.cert||0,
+    'Amortissement (DT)':    r.amort||0,
+    'Autres charges (DT)':   r.autres||0,
+    'Total charges (DT)':    r.totalCharges||0,
+    'Prix vente (DT/kg)':    r.pv||0,
+    'Coût revient (DT/kg)':  r.coutRevient_DT_kg||0,
+    'Marge brute (DT/kg)':   r.margeBrute_DT_kg||0,
+    'Taux marge (%)':        r.tauxMarge_pct||0,
+    'Rendement (kg/ha)':     r.rendement_kg_ha||0,
+    'Statut':                r.statut||'',
+    'Notes':                 r.notes||''
+  }));
 
-const colonnes = [
-'Date saisie', 'Année', 'Nom / Exploitation', 'Région', 'Mode culture', 'Canal vente',
-'Surface (ha)', 'Nb palmiers', 'Production (kg)', 'Pertes (kg)', 'Production nette (kg)',
-'Main d\'œuvre (DT)', 'Intrants (DT)', 'Eau (DT)', 'Récolte (DT)',
-'Transport (DT)', 'Certification (DT)', 'Amortissement (DT)', 'Autres charges (DT)',
-'Total charges (DT)', 'Prix vente (DT/kg)',
-'Coût revient (DT/kg)', 'Marge brute (DT/kg)', 'Taux marge (%)',
-'Rendement (kg/ha)', 'Statut', 'Notes'
-];
+  const wb  = XLSX.utils.book_new();
+  const ws  = XLSX.utils.json_to_sheet(lignes, { header: colonnes });
+  ws['!cols'] = colonnes.map(c => ({ wch: Math.max(c.length+2, 14) }));
+  XLSX.utils.book_append_sheet(wb, ws, 'Données saisons');
 
-const lignes = allData.map(r => ({
-'Date saisie': r.createdAt?.toDate ? r.createdAt.toDate().toLocaleDateString('fr-FR') : '',
-'Année': r.annee || '',
-'Nom / Exploitation': r.nom || '',
-'Région': r.region || '',
-'Mode culture': r.mode || '',
-'Canal vente': r.canal || '',
-'Surface (ha)': r.surface || 0,
-'Nb palmiers': r.palmiers || 0,
-'Production (kg)': r.production || 0,
-'Pertes (kg)': r.pertes || 0,
-'Production nette (kg)': r.netProd || 0,
-'Main d\'œuvre (DT)': r.mo || 0,
-'Intrants (DT)': r.intrants || 0,
-'Eau (DT)': r.eau || 0,
-'Récolte (DT)': r.recolte || 0,
-'Transport (DT)': r.transport || 0,
-'Certification (DT)': r.cert || 0,
-'Amortissement (DT)': r.amort || 0,
-'Autres charges (DT)': r.autres || 0,
-'Total charges (DT)': r.totalCharges || 0,
-'Prix vente (DT/kg)': r.pv || 0,
-'Coût revient (DT/kg)': r.coutRevient_DT_kg || 0,
-'Marge brute (DT/kg)': r.margeBrute_DT_kg || 0,
-'Taux marge (%)': r.tauxMarge_pct || 0,
-'Rendement (kg/ha)': r.rendement_kg_ha || 0,
-'Statut': r.statut || '',
-'Notes': r.notes || ''
-}));
+  const bio  = allData.filter(r=>r.mode==='bio');
+  const conv = allData.filter(r=>r.mode==='conv');
+  const avg  = (arr,key) => arr.length?(arr.reduce((s,r)=>s+(r[key]||0),0)/arr.length).toFixed(3):'—';
+  const ws2  = XLSX.utils.json_to_sheet([
+    {'Indicateur':'Nombre total d\'entrées',           'Valeur':allData.length},
+    {'Indicateur':'Dont Bio',                           'Valeur':bio.length},
+    {'Indicateur':'Dont Conventionnel',                 'Valeur':conv.length},
+    {'Indicateur':'— BIO — Coût revient moy (DT/kg)',  'Valeur':avg(bio,'coutRevient_DT_kg')},
+    {'Indicateur':'— BIO — Marge brute moy (DT/kg)',   'Valeur':avg(bio,'margeBrute_DT_kg')},
+    {'Indicateur':'— BIO — Rendement moy (kg/ha)',     'Valeur':avg(bio,'rendement_kg_ha')},
+    {'Indicateur':'— CONV — Coût revient moy (DT/kg)', 'Valeur':avg(conv,'coutRevient_DT_kg')},
+    {'Indicateur':'— CONV — Marge brute moy (DT/kg)',  'Valeur':avg(conv,'margeBrute_DT_kg')},
+    {'Indicateur':'— CONV — Rendement moy (kg/ha)',    'Valeur':avg(conv,'rendement_kg_ha')},
+    {'Indicateur':'Exploitations rentables',            'Valeur':allData.filter(r=>r.statut==='rentable').length},
+    {'Indicateur':'Exploitations déficitaires',         'Valeur':allData.filter(r=>r.statut==='déficitaire').length},
+  ]);
+  ws2['!cols'] = [{wch:42},{wch:20}];
+  XLSX.utils.book_append_sheet(wb, ws2, 'Résumé');
 
-const wb = XLSX.utils.book_new();
-const ws = XLSX.utils.json_to_sheet(lignes, { header: colonnes });
-
-// Largeur des colonnes
-ws['!cols'] = colonnes.map(c => ({ wch: Math.max(c.length + 2, 14) }));
-
-XLSX.utils.book_append_sheet(wb, ws, 'Données saisons');
-
-// Feuille résumé
-const bio = allData.filter(r => r.mode === 'bio');
-const conv = allData.filter(r => r.mode === 'conv');
-const avg = (arr, key) => arr.length ? (arr.reduce((s,r) => s+(r[key]||0),0)/arr.length).toFixed(3) : '—';
-
-const resume = [
-{ 'Indicateur': 'Nombre total d\'entrées', 'Valeur': allData.length },
-{ 'Indicateur': 'Dont Bio', 'Valeur': bio.length },
-{ 'Indicateur': 'Dont Conventionnel', 'Valeur': conv.length },
-{ 'Indicateur': '— BIO — Coût revient moy (DT/kg)', 'Valeur': avg(bio,'coutRevient_DT_kg') },
-{ 'Indicateur': '— BIO — Marge brute moy (DT/kg)', 'Valeur': avg(bio,'margeBrute_DT_kg') },
-{ 'Indicateur': '— BIO — Rendement moy (kg/ha)', 'Valeur': avg(bio,'rendement_kg_ha') },
-{ 'Indicateur': '— CONV — Coût revient moy (DT/kg)','Valeur': avg(conv,'coutRevient_DT_kg') },
-{ 'Indicateur': '— CONV — Marge brute moy (DT/kg)', 'Valeur': avg(conv,'margeBrute_DT_kg') },
-{ 'Indicateur': '— CONV — Rendement moy (kg/ha)', 'Valeur': avg(conv,'rendement_kg_ha') },
-{ 'Indicateur': 'Exploitations rentables', 'Valeur': allData.filter(r=>r.statut==='rentable').length },
-{ 'Indicateur': 'Exploitations déficitaires', 'Valeur': allData.filter(r=>r.statut==='déficitaire').length },
-];
-const ws2 = XLSX.utils.json_to_sheet(resume);
-ws2['!cols'] = [{ wch: 40 }, { wch: 20 }];
-XLSX.utils.book_append_sheet(wb, ws2, 'Résumé');
-
-const date = new Date().toISOString().slice(0,10);
-XLSX.writeFile(wb, `dattes_production_${date}.xlsx`);
-toast('✅ Fichier Excel téléchargé !');
+  XLSX.writeFile(wb, `dattes_oasis_${new Date().toISOString().slice(0,10)}.xlsx`);
+  toast('✅ Fichier Excel téléchargé !');
 };
 
-// ── SUPPRIMER ─────────────────────────────────
 window.supprimerDoc = async (id) => {
-if (!confirm('Supprimer cet enregistrement ?')) return;
-await deleteDoc(doc(db, 'saisons', id));
-toast('🗑 Supprimé');
-chargerDonnees();
+  if (!confirm('Supprimer cet enregistrement ?')) return;
+  await deleteDoc(doc(db, 'saisons', id));
+  toast('🗑 Supprimé');
+  chargerDonnees();
 };
 
-function toast(msg) {
-const el = document.getElementById('toast');
-el.textContent = msg; el.classList.add('show');
-setTimeout(() => el.classList.remove('show'), 3000);
-}
+function toast(msg){const el=document.getElementById('toast');el.textContent=msg;el.classList.add('show');setTimeout(()=>el.classList.remove('show'),3000);}
 </script>
 
 <style>
 *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
-:root{
---bg:#f7f3ee;--card:#fff;--brown:#2c1810;--terra:#8b3a1a;
---gold:#c8860a;--amber:#e8a020;--bio:#5a9e3a;--conv:#c07820;
---muted:#9a8070;--border:#e8ddd0;--sand:#f0e8d8;
---shadow:rgba(44,24,16,0.10);
-}
+:root{--bg:#f7f3ee;--card:#fff;--brown:#2c1810;--terra:#8b3a1a;--gold:#c8860a;--amber:#e8a020;--bio:#5a9e3a;--conv:#c07820;--muted:#9a8070;--border:#e8ddd0;--sand:#f0e8d8;--shadow:rgba(44,24,16,0.10)}
 body{font-family:'DM Mono',monospace;background:var(--bg);color:var(--brown);min-height:100vh}
-
-/* LOGIN */
 .login-wrap{max-width:360px;margin:80px auto;padding:0 16px;text-align:center}
 .login-icon{font-size:3rem;margin-bottom:16px}
 .login-title{font-family:'Syne',sans-serif;font-size:1.5rem;font-weight:800;color:var(--terra);margin-bottom:6px}
@@ -241,29 +231,20 @@ body{font-family:'DM Mono',monospace;background:var(--bg);color:var(--brown);min
 .field input{width:100%;padding:11px 14px;background:var(--sand);border:1.5px solid var(--border);border-radius:10px;font-family:'DM Mono',monospace;font-size:1rem;color:var(--brown);outline:none;transition:border-color .2s}
 .field input:focus{border-color:var(--amber)}
 .error-msg{color:#dc3545;font-size:0.78rem;margin-top:8px}
-
-/* ADMIN */
 .admin-wrap{max-width:1100px;margin:0 auto;padding:20px 16px 60px}
 .admin-header{background:var(--brown);border-radius:16px;padding:20px 24px;margin-bottom:20px;display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:12px}
 .admin-header h1{font-family:'Syne',sans-serif;font-size:1.3rem;font-weight:800;color:#fff}
 .admin-header p{font-size:0.72rem;color:rgba(255,255,255,0.5);margin-top:2px}
 .header-actions{display:flex;gap:8px;flex-wrap:wrap}
-
-/* STATS */
 .stats-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:20px}
 @media(max-width:600px){.stats-grid{grid-template-columns:1fr 1fr}}
 .stat-box{background:var(--card);border:1px solid var(--border);border-radius:14px;padding:16px;text-align:center;box-shadow:0 2px 8px var(--shadow)}
 .stat-val{font-family:'Syne',sans-serif;font-size:1.6rem;font-weight:800;color:var(--terra);line-height:1}
 .stat-lbl{font-size:0.62rem;color:var(--muted);letter-spacing:1px;text-transform:uppercase;margin-top:4px}
-
-/* FILTRES */
 .filtres{background:var(--card);border:1px solid var(--border);border-radius:14px;padding:14px 16px;margin-bottom:16px;display:flex;gap:10px;flex-wrap:wrap;align-items:flex-end}
 .filtre-field{flex:1;min-width:120px}
 .filtre-field label{display:block;font-size:0.65rem;letter-spacing:1px;text-transform:uppercase;color:var(--muted);margin-bottom:4px}
 .filtre-field input,.filtre-field select{width:100%;padding:8px 10px;background:var(--sand);border:1.5px solid var(--border);border-radius:8px;font-family:'DM Mono',monospace;font-size:0.82rem;color:var(--brown);outline:none}
-.filtre-field select{appearance:none}
-
-/* TABLE */
 .table-card{background:var(--card);border:1px solid var(--border);border-radius:14px;overflow:hidden;box-shadow:0 2px 8px var(--shadow)}
 .table-wrap{overflow-x:auto}
 table{width:100%;border-collapse:collapse;font-size:0.76rem;min-width:900px}
@@ -272,16 +253,12 @@ td{padding:10px 12px;border-bottom:1px solid var(--border);vertical-align:middle
 tr:last-child td{border-bottom:none}
 tr:hover td{background:rgba(200,134,10,0.04)}
 small{font-size:0.65rem;color:var(--muted)}
-
-/* BADGES */
 .badge{display:inline-block;font-size:0.65rem;padding:3px 8px;border-radius:20px;font-weight:600;white-space:nowrap}
 .badge-bio{background:rgba(90,158,58,0.15);color:var(--bio)}
 .badge-conv{background:rgba(192,120,32,0.15);color:var(--conv)}
 .badge-green{background:rgba(90,158,58,0.12);color:var(--bio)}
 .badge-red{background:rgba(220,53,69,0.1);color:#dc3545}
 .badge-grey{background:var(--sand);color:var(--muted)}
-
-/* BOUTONS */
 .btn{display:inline-flex;align-items:center;gap:5px;padding:10px 16px;border:none;border-radius:8px;font-family:'Syne',sans-serif;font-size:0.76rem;font-weight:700;cursor:pointer;transition:all .2s}
 .btn-primary{background:var(--terra);color:#fff}.btn-primary:hover{background:var(--brown)}
 .btn-excel{background:#1d6f42;color:#fff}
@@ -289,132 +266,114 @@ small{font-size:0.65rem;color:var(--muted)}
 .btn-danger{background:#dc3545;color:#fff}
 .btn-xs{padding:5px 9px;font-size:0.68rem;border-radius:6px}
 .btn-full{width:100%;justify-content:center}
+.double-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:20px}
+@media(max-width:600px){.double-grid{grid-template-columns:1fr}}
+.stat-card{background:var(--card);border:1px solid var(--border);border-radius:14px;padding:16px;box-shadow:0 2px 8px var(--shadow)}
+.stat-card-title{font-family:'Syne',sans-serif;font-size:0.78rem;font-weight:700;letter-spacing:1px;text-transform:uppercase;color:var(--terra);margin-bottom:12px}
+.stat-row-header{display:flex;justify-content:space-between;font-size:0.62rem;letter-spacing:1px;text-transform:uppercase;color:var(--muted);padding-bottom:6px;border-bottom:1px solid var(--border);margin-bottom:6px}
+.stat-row-header span:first-child{flex:1}
+.stat-row-header span{min-width:80px;text-align:right}
+.stat-row-header span:first-child{text-align:left}
+.stat-row{display:flex;justify-content:space-between;align-items:center;padding:8px 0;border-bottom:1px solid var(--border);font-size:0.78rem}
+.stat-row:last-child{border-bottom:none}
+.stat-row-label{flex:1;color:var(--brown)}
+.stat-row-label small{color:var(--muted);font-size:0.65rem}
+.stat-row span{min-width:80px;text-align:right}
+.no-data{font-size:0.75rem;color:var(--muted);text-align:center;padding:12px 0}
 
-/* LOADING */
-.loading{text-align:center;padding:12px;font-size:0.8rem;color:var(--muted);display:none}
-
-/* TOAST */
 .toast{position:fixed;bottom:20px;left:50%;transform:translateX(-50%) translateY(20px);background:var(--brown);color:#fff;padding:10px 20px;border-radius:20px;font-size:0.78rem;opacity:0;transition:all .3s;pointer-events:none;z-index:999}
 .toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
 </style>
-
 </head>
 <body>
 
-<!-- ── ÉCRAN LOGIN ── -->
-
 <div id="loginScreen">
-<div class="login-wrap">
-<div class="login-icon">🔐</div>
-<div class="login-title">Espace Administrateur</div>
-<div class="login-sub">Dattes — Oasis du Sud Tunisien</div>
-<div class="login-card">
-<div class="field">
-<label>Mot de passe</label>
-<input type="password" id="mdpInput" placeholder="••••••••••••"
-onkeydown="if(event.key==='Enter') verifierMDP()">
+  <div class="login-wrap">
+    <div class="login-icon">🔐</div>
+    <div class="login-title">Espace Administrateur</div>
+    <div class="login-sub">Dattes Oasis — Sud Tunisien</div>
+    <div class="login-card">
+      <div class="field">
+        <label>Mot de passe</label>
+        <input type="password" id="mdpInput" placeholder="••••••••••••"
+               onkeydown="if(event.key==='Enter') verifierMDP()">
+      </div>
+      <div id="mdpError" class="error-msg"></div>
+      <br>
+      <button class="btn btn-primary btn-full" onclick="verifierMDP()">
+        Accéder au tableau de bord →
+      </button>
+    </div>
+  </div>
 </div>
-<div id="mdpError" class="error-msg"></div>
-<br>
-<button class="btn btn-primary btn-full" onclick="verifierMDP()">
-Accéder au tableau de bord →
-</button>
-</div>
-</div>
-</div>
-
-<!-- ── ÉCRAN ADMIN ── -->
 
 <div id="adminScreen" style="display:none">
-<div class="admin-wrap">
+  <div class="admin-wrap">
+    <div class="admin-header">
+      <div>
+        <h1>🌴 Tableau de bord Admin</h1>
+        <p>Dattes Oasis — Données collectées auprès des agriculteurs</p>
+      </div>
+      <div class="header-actions">
+        <button class="btn btn-refresh" onclick="chargerDonnees()">🔄 Actualiser</button>
+        <button class="btn btn-excel" onclick="exportExcel()">📥 Export Excel</button>
+      </div>
+    </div>
 
-```
-<!-- HEADER -->
-<div class="admin-header">
-<div>
-<h1>🌴 Tableau de bord Admin</h1>
-<p>Données collectées auprès des agriculteurs</p>
-</div>
-<div class="header-actions">
-<button class="btn btn-refresh" onclick="chargerDonnees()">🔄 Actualiser</button>
-<button class="btn btn-excel" onclick="exportExcel()">📥 Export Excel</button>
-</div>
-</div>
+    <div class="stats-grid">
+      <div class="stat-box"><div class="stat-val" id="statTotal">—</div><div class="stat-lbl">Entrées totales</div></div>
+      <div class="stat-box"><div class="stat-val" id="statCout" style="color:var(--terra)">—</div><div class="stat-lbl">Coût revient moyen</div></div>
+      <div class="stat-box"><div class="stat-val" id="statMarge">—</div><div class="stat-lbl">Marge brute moyenne</div></div>
+      <div class="stat-box"><div class="stat-val" id="statRentable" style="color:var(--bio)">—</div><div class="stat-lbl">Exploitations rentables</div></div>
+    </div>
 
-<!-- STATS -->
-<div class="stats-grid">
-<div class="stat-box">
-<div class="stat-val" id="statTotal">—</div>
-<div class="stat-lbl">Entrées totales</div>
-</div>
-<div class="stat-box">
-<div class="stat-val" id="statCout" style="color:var(--terra)">—</div>
-<div class="stat-lbl">Coût revient moyen</div>
-</div>
-<div class="stat-box">
-<div class="stat-val" id="statMarge">—</div>
-<div class="stat-lbl">Marge brute moyenne</div>
-</div>
-<div class="stat-box">
-<div class="stat-val" id="statRentable" style="color:var(--bio)">—</div>
-<div class="stat-lbl">Exploitations rentables</div>
-</div>
-</div>
+    <!-- STATS PAR MODE ET RÉGION -->
+    <div class="double-grid">
+      <div class="stat-card">
+        <div class="stat-card-title">🌱 Par mode de culture</div>
+        <div class="stat-row-header">
+          <span>Mode</span><span>Coût/kg</span><span>Marge/kg</span>
+        </div>
+        <div id="statParMode"><p class="no-data">Cliquez sur Actualiser</p></div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-card-title">📍 Par région</div>
+        <div class="stat-row-header">
+          <span>Région</span><span>Coût/kg</span><span>Marge/kg</span>
+        </div>
+        <div id="statParRegion"><p class="no-data">Cliquez sur Actualiser</p></div>
+      </div>
+    </div>
 
-<!-- FILTRES -->
-<div class="filtres">
-<div class="filtre-field">
-<label>Recherche</label>
-<input type="text" id="filtreSearch" placeholder="Nom, région…" oninput="filtrer()">
-</div>
-<div class="filtre-field">
-<label>Mode culture</label>
-<select id="filtreMode" onchange="filtrer()">
-<option value="">Tous</option>
-<option value="bio">🌱 Bio</option>
-<option value="conv">🌾 Conventionnel</option>
-<option value="trans">🔄 Transition</option>
-</select>
-</div>
-<div class="filtre-field">
-<label>Année</label>
-<input type="number" id="filtreAnnee" placeholder="2024" oninput="filtrer()">
-</div>
-</div>
+    <div class="filtres">
+      <div class="filtre-field"><label>Recherche</label><input type="text" id="filtreSearch" placeholder="Nom, région…" oninput="filtrer()"></div>
+      <div class="filtre-field"><label>Mode culture</label>
+        <select id="filtreMode" onchange="filtrer()">
+          <option value="">Tous</option>
+          <option value="bio">🌱 Bio</option>
+          <option value="conv">🌾 Conventionnel</option>
+          <option value="trans">🔄 Transition</option>
+        </select>
+      </div>
+      <div class="filtre-field"><label>Année</label><input type="number" id="filtreAnnee" placeholder="2024" oninput="filtrer()"></div>
+    </div>
 
-<!-- TABLE -->
-<div class="table-card">
-<div class="loading" id="loadingMsg">⏳ Chargement des données…</div>
-<div class="table-wrap">
-<table>
-<thead>
-<tr>
-<th>Date</th>
-<th>Année</th>
-<th>Nom / Région</th>
-<th>Mode</th>
-<th>Production</th>
-<th>Coût/kg (DT)</th>
-<th>Marge/kg (DT)</th>
-<th>Rdt kg/ha</th>
-<th>Statut</th>
-<th></th>
-</tr>
-</thead>
-<tbody id="tableBody">
-<tr><td colspan="10" style="text-align:center;padding:20px;color:var(--muted)">
-Cliquez sur Actualiser pour charger les données
-</td></tr>
-</tbody>
-</table>
-</div>
-</div>
-```
-
-</div>
+    <div class="table-card">
+      <div class="loading" id="loadingMsg">⏳ Chargement des données…</div>
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr><th>Date</th><th>Année</th><th>Nom / Région</th><th>Mode</th><th>Production</th><th>Coût/kg (DT)</th><th>Marge/kg (DT)</th><th>Rdt kg/ha</th><th>Statut</th><th></th></tr>
+          </thead>
+          <tbody id="tableBody">
+            <tr><td colspan="10" style="text-align:center;padding:20px;color:var(--muted)">Cliquez sur Actualiser</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
 </div>
 
 <div class="toast" id="toast"></div>
 </body>
 </html>
-
