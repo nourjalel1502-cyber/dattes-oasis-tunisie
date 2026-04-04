@@ -24,7 +24,7 @@ const firebaseConfig = {
 const app = initializeApp(firebaseConfig);
 const db  = getFirestore(app);
 
-const ADMIN_PASSWORD = "jalel123";
+const ADMIN_PASSWORD = "dattes@admin2024";
 
 window.verifierMDP = () => {
   const mdp = document.getElementById('mdpInput').value;
@@ -77,10 +77,12 @@ function afficherStats() {
     if (!arr.length) return '';
     const aC = (arr.reduce((s,r)=>s+(r.coutRevient_DT_kg||0),0)/arr.length).toFixed(3);
     const aM = (arr.reduce((s,r)=>s+(r.margeBrute_DT_kg||0),0)/arr.length);
+    const aR = Math.round(arr.reduce((s,r)=>s+(r.rendement_kg_ha||0),0)/arr.length);
     return `<div class="stat-row">
       <span class="stat-row-label">${modeLabels[m]} <small>(${arr.length})</small></span>
-      <span style="color:var(--terra);font-weight:600">${aC} DT/kg</span>
-      <span style="color:${aM>=0?'var(--bio)':'#dc3545'};font-weight:600">${aM>=0?'+':''}${aM.toFixed(3)} DT/kg</span>
+      <span style="color:var(--terra);font-weight:600">${aC}</span>
+      <span style="color:${aM>=0?'var(--bio)':'#dc3545'};font-weight:600">${aM>=0?'+':''}${aM.toFixed(3)}</span>
+      <span style="color:var(--gold);font-weight:600">${aR}</span>
     </div>`;
   }).join('');
   document.getElementById('statParMode').innerHTML = modeHTML || '<p class="no-data">Aucune donnée</p>';
@@ -91,10 +93,12 @@ function afficherStats() {
     const arr = allData.filter(r=>(r.region||'Non précisée')===reg);
     const aC  = (arr.reduce((s,r)=>s+(r.coutRevient_DT_kg||0),0)/arr.length).toFixed(3);
     const aM  = (arr.reduce((s,r)=>s+(r.margeBrute_DT_kg||0),0)/arr.length);
+    const aR  = Math.round(arr.reduce((s,r)=>s+(r.rendement_kg_ha||0),0)/arr.length);
     return `<div class="stat-row">
       <span class="stat-row-label">📍 ${reg} <small>(${arr.length})</small></span>
-      <span style="color:var(--terra);font-weight:600">${aC} DT/kg</span>
-      <span style="color:${aM>=0?'var(--bio)':'#dc3545'};font-weight:600">${aM>=0?'+':''}${aM.toFixed(3)} DT/kg</span>
+      <span style="color:var(--terra);font-weight:600">${aC}</span>
+      <span style="color:${aM>=0?'var(--bio)':'#dc3545'};font-weight:600">${aM>=0?'+':''}${aM.toFixed(3)}</span>
+      <span style="color:var(--gold);font-weight:600">${aR}</span>
     </div>`;
   }).join('');
   document.getElementById('statParRegion').innerHTML = regionHTML || '<p class="no-data">Aucune donnée</p>';
@@ -332,14 +336,14 @@ small{font-size:0.65rem;color:var(--muted)}
       <div class="stat-card">
         <div class="stat-card-title">🌱 Par mode de culture</div>
         <div class="stat-row-header">
-          <span>Mode</span><span>Coût/kg</span><span>Marge/kg</span>
+          <span>Mode</span><span>Coût/kg</span><span>Marge/kg</span><span>Rdt kg/ha</span>
         </div>
         <div id="statParMode"><p class="no-data">Cliquez sur Actualiser</p></div>
       </div>
       <div class="stat-card">
         <div class="stat-card-title">📍 Par région</div>
         <div class="stat-row-header">
-          <span>Région</span><span>Coût/kg</span><span>Marge/kg</span>
+          <span>Région</span><span>Coût/kg</span><span>Marge/kg</span><span>Rdt kg/ha</span>
         </div>
         <div id="statParRegion"><p class="no-data">Cliquez sur Actualiser</p></div>
       </div>
