@@ -4,7 +4,6 @@
 <meta charset="UTF-8">
 <link rel="manifest" href="/dattes-oasis-tunisie/manifest.json">
 <meta name="theme-color" content="#2c1810">
-  
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Admin — Dattes Oasis</title>
 <link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;700;800&family=DM+Mono:wght@300;400;500&display=swap" rel="stylesheet">
@@ -27,7 +26,7 @@ const firebaseConfig = {
 const app = initializeApp(firebaseConfig);
 const db  = getFirestore(app);
 
-const ADMIN_PASSWORD = "jalel123";
+const ADMIN_PASSWORD = "chahbani123";
 
 window.verifierMDP = () => {
   const mdp = document.getElementById('mdpInput').value;
@@ -286,7 +285,15 @@ small{font-size:0.65rem;color:var(--muted)}
 .stat-row-label{flex:1;color:var(--brown)}
 .stat-row-label small{color:var(--muted);font-size:0.65rem}
 .stat-row span{min-width:80px;text-align:right}
-.no-data{font-size:0.75rem;color:var(--muted);text-align:center;padding:12px 0}
+.bar-row{margin-bottom:10px}
+.bar-label{display:flex;justify-content:space-between;font-size:0.72rem;color:var(--muted);margin-bottom:4px}
+.bar-track{height:8px;background:var(--sand);border-radius:4px;overflow:hidden;margin-bottom:3px}
+.bar-fill{height:100%;border-radius:4px;transition:width .6s ease}
+.bar-sig{font-size:0.68rem;text-align:right}
+.sig-alert{margin-top:12px;padding:10px 12px;border-radius:8px;font-size:0.75rem;line-height:1.5}
+.sig-ok{background:rgba(90,158,58,0.12);color:var(--bio)}
+.sig-warn{background:rgba(200,134,10,0.1);color:var(--gold)}
+
 
 .toast{position:fixed;bottom:20px;left:50%;transform:translateX(-50%) translateY(20px);background:var(--brown);color:#fff;padding:10px 20px;border-radius:20px;font-size:0.78rem;opacity:0;transition:all .3s;pointer-events:none;z-index:999}
 .toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
@@ -350,6 +357,23 @@ small{font-size:0.65rem;color:var(--muted)}
         </div>
         <div id="statParRegion"><p class="no-data">Cliquez sur Actualiser</p></div>
       </div>
+    </div>
+
+    <!-- GRAPHIQUES -->
+    <div class="double-grid">
+      <div class="stat-card">
+        <div class="stat-card-title">📊 Distribution par mode de culture</div>
+        <div id="chartMode"></div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-card-title">📊 Distribution par région</div>
+        <div id="chartRegion"></div>
+      </div>
+    </div>
+
+    <div class="stat-card" style="margin-bottom:20px">
+      <div class="stat-card-title">📐 Distribution par surface (ha)</div>
+      <div id="chartSurface"></div>
     </div>
 
     <div class="filtres">
