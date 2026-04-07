@@ -478,10 +478,9 @@ const delegations = {
     fr: ['Gafsa Nord','Gafsa Sud','El Ksar','Sidi Aïch','Belkhir','Mdhila','Redeyef','Métlaoui','Om El Araies'],
     ar: ['قفصة الشمالية','قفصة الجنوبية','القصر','سيدي عيش','بلخير','المظيلة','الرديف','المتلوي','أم العرائس']
   }
- 
 };
 
-window.majDelegations = () => {
+window.majDelegations = ()
   const gov = document.getElementById('f_gouvernorat').value;
   const sel = document.getElementById('f_delegation');
   const placeholder = lang==='ar' ? '— اختر المعتمدية —' : '— Choisir une délégation —';
