@@ -2,7 +2,6 @@
 <html lang="fr" dir="ltr">
 <head>
 <meta charset="UTF-8">
-<link rel="manifest" href="/dattes-oasis-tunisie/manifest.json"> 
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Dattes Oasis — تكلفة الإنتاج</title>
 <link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700;800&family=DM+Mono:wght@300;400;500&family=Noto+Sans+Arabic:wght@400;600;700&display=swap" rel="stylesheet">
@@ -193,7 +192,9 @@ body.ar .field label{letter-spacing:0}
           <option value="kebili">Kébili / قبلي</option>
           <option value="gabes">Gabès / قابس</option>
           <option value="gafsa">Gafsa / قفصة</option>
-     </select>
+          <option value="tataouine">Tataouine / تطاوين</option>
+          <option value="medenine">Médenine / مدنين</option>
+        </select>
       </div>
     </div>
     <div class="field">
@@ -409,7 +410,7 @@ window.setLang = (l) => {
   // Options selects
   if (l === 'ar') {
     document.getElementById('f_mode').innerHTML = `
-      <option value="bio">🌱 بيو معتمد</option>
+      <option value="bio">🌱 بيولوجي</option>
       <option value="conv">🌾 تقليدي</option>
       <option value="trans">🔄 مرحلة انتقالية</option>`;
     document.getElementById('f_type_oasis').innerHTML = `
@@ -427,9 +428,7 @@ window.setLang = (l) => {
       <option value="tozeur">توزر</option>
       <option value="kebili">قبلي</option>
       <option value="gabes">قابس</option>
-      <option value="gafsa">قفصة</option>
-      <option value="tataouine">تطاوين</option>
-      <option value="medenine">مدنين</option>`;
+      <option value="gafsa">قفصة</option>`;
     document.getElementById('f_notes').placeholder = 'الأحوال الجوية، ملاحظات…';
   } else {
     document.getElementById('f_mode').innerHTML = `
@@ -451,9 +450,7 @@ window.setLang = (l) => {
       <option value="tozeur">Tozeur / توزر</option>
       <option value="kebili">Kébili / قبلي</option>
       <option value="gabes">Gabès / قابس</option>
-      <option value="gafsa">Gafsa / قفصة</option>
-      <option value="tataouine">Tataouine / تطاوين</option>
-      <option value="medenine">Médenine / مدنين</option>`;
+      <option value="gafsa">Gafsa / قفصة</option>`;
     document.getElementById('f_notes').placeholder = 'Conditions météo, observations…';
   }
   majDelegations();
@@ -477,9 +474,10 @@ const delegations = {
     fr: ['Gafsa Nord','Gafsa Sud','El Ksar','Sidi Aïch','Belkhir','Mdhila','Redeyef','Métlaoui','Om El Araies'],
     ar: ['قفصة الشمالية','قفصة الجنوبية','القصر','سيدي عيش','بلخير','المظيلة','الرديف','المتلوي','أم العرائس']
   }
+  
 };
 
-window.majDelegations = ()
+window.majDelegations = () => {
   const gov = document.getElementById('f_gouvernorat').value;
   const sel = document.getElementById('f_delegation');
   const placeholder = lang==='ar' ? '— اختر المعتمدية —' : '— Choisir une délégation —';
