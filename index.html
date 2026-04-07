@@ -11,7 +11,7 @@
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
 import { getFirestore, collection, addDoc, serverTimestamp }
   from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
-  
+
 const firebaseConfig = {
   apiKey: "AIzaSyB82PZnxvbhX3YuqoslbQOEiRsoqGZClUM",
   authDomain: "dattes-oasis.firebaseapp.com",
@@ -213,6 +213,9 @@ body.ar .field label{letter-spacing:0}
         <input type="number" id="f_surface" placeholder="0.00" step="0.1" min="0">
         <div class="unit" id="t_surface_unit">Hectares de palmeraie</div>
       </div>
+      <div class="field">
+        <label id="t_type_oasis2">Type d'oasis</label>
+        <select id="f_type_oasis2" style="display:none"><!-- doublon masqué --></select>
       </div>
     </div>
     <div class="row2">
@@ -363,7 +366,7 @@ const translations = {
     t_surface_unit: 'هكتار من الواحة',
     t_palmiers_dn: 'نخيل دقلة النور',
     t_dn_unit: 'عدد نخيل دقلة النور',
-    t_palmiers_commun: 'نخيل التمورالمطلق',
+    t_palmiers_commun: 'نخيل تمور المطلق',
     t_dc_unit: 'عدد نخيل المطلق',
     t_prod_kg: 'الإنتاج الإجمالي (كغ)',
     t_prod_unit: 'كغ محصودة هذا الموسم',
