@@ -1,10 +1,8 @@
 <!DOCTYPE html>
-
 <html lang="fr">
 <head>
 <meta charset="UTF-8">
-<link rel="manifest" href="/dattes-oasis-tunisie/manifest.json">
-<meta name="theme-color" content="#2c1810">  
+<link rel="manifest" href="/dattes-oasis-tunisie/manifest.json">  
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Estimation coût de production — Dattes Sud Tunisien</title>
 <link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700;800&family=DM+Mono:wght@300;400;500&display=swap" rel="stylesheet">
@@ -12,9 +10,8 @@
 <script type="module">
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
 import { getFirestore, collection, addDoc, serverTimestamp }
-from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
+  from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
 
-// Your web app's Firebase configuration
 const firebaseConfig = {
   apiKey: "AIzaSyB82PZnxvbhX3YuqoslbQOEiRsoqGZClUM",
   authDomain: "dattes-oasis.firebaseapp.com",
@@ -24,103 +21,77 @@ const firebaseConfig = {
   appId: "1:794362383685:web:21f8080b21b1074128c22c"
 };
 
-// Initialize Firebase
-
 const app = initializeApp(firebaseConfig);
-const db = getFirestore(app);
+const db  = getFirestore(app);
 
 window.sauvegarder = async () => {
-const annee = document.getElementById('f_annee').value;
-if (!annee) { toast('⚠ Veuillez saisir une année'); return; }
-const v = id => parseFloat(document.getElementById(id).value) || 0;
+  const annee = document.getElementById('f_annee').value;
+  if (!annee) { toast('⚠ Veuillez saisir une année'); return; }
+  const v = id => parseFloat(document.getElementById(id).value) || 0;
 
-// ── Données brutes ────────────────────────────
-const production = v('f_production');
-const pertes = v('f_pertes');
-const mo = v('f_mo');
-const intrants = v('f_intrants');
-const eau = v('f_eau');
-const recolte = v('f_recolte');
-const transport = v('f_transport');
-const cert = v('f_cert');
-const amort = v('f_amort');
-const autres = v('f_autres');
-const pv = v('f_pv');
-const surface = v('f_surface');
+  const production = v('f_production');
+  const pertes     = v('f_pertes');
+  const mo         = v('f_mo');
+  const intrants   = v('f_intrants');
+  const eau        = v('f_eau');
+  const recolte    = v('f_recolte');
+  const transport  = v('f_transport');
+  const cert       = v('f_cert');
+  const amort      = v('f_amort');
+  const autres     = v('f_autres');
+  const pv         = v('f_pv');
+  const surface    = v('f_surface');
 
-// ── Valeurs calculées ─────────────────────────
-const totalCharges = mo + intrants + eau + recolte + transport + cert + amort + autres;
-const netProd = production - pertes;
-const coutRevient = netProd > 0 ? totalCharges / netProd : 0;
-const margeBrute = pv - coutRevient;
-const rendement = surface > 0 ? production / surface : 0;
-const statut = coutRevient === 0 ? 'non calculé'
-: margeBrute > 0 ? 'rentable' : 'déficitaire';
-const tauxMarge = coutRevient > 0
-? parseFloat(((margeBrute / coutRevient) * 100).toFixed(2))
-: 0;
+  const totalCharges = mo+intrants+eau+recolte+transport+cert+amort+autres;
+  const netProd      = production - pertes;
+  const coutRevient  = netProd > 0 ? totalCharges / netProd : 0;
+  const margeBrute   = pv - coutRevient;
+  const rendement    = surface > 0 ? production / surface : 0;
+  const statut       = coutRevient === 0 ? 'non calculé' : margeBrute > 0 ? 'rentable' : 'déficitaire';
+  const tauxMarge    = coutRevient > 0 ? parseFloat(((margeBrute/coutRevient)*100).toFixed(2)) : 0;
 
-const rec = {
-// Identification
-annee: parseInt(annee),
-mode: document.getElementById('f_mode').value,
-nom: document.getElementById('f_nom').value || 'Sans nom',
-region: document.getElementById('f_region').value || '',
-canal: document.getElementById('f_canal').value,
-notes: document.getElementById('f_notes').value || '',
+  const rec = {
+    annee:      parseInt(annee),
+    mode:       document.getElementById('f_mode').value,
+    nom:        document.getElementById('f_nom').value || 'Sans nom',
+    region:     document.getElementById('f_region').value || '',
+    canal:      document.getElementById('f_canal').value,
+    notes:      document.getElementById('f_notes').value || '',
+    surface, palmiers: parseInt(document.getElementById('f_palmiers').value)||0,
+    production, pertes,
+    mo, intrants, eau, recolte, transport, cert, amort, autres, pv,
+    totalCharges:      parseFloat(totalCharges.toFixed(3)),
+    netProd:           parseFloat(netProd.toFixed(3)),
+    coutRevient_DT_kg: parseFloat(coutRevient.toFixed(3)),
+    margeBrute_DT_kg:  parseFloat(margeBrute.toFixed(3)),
+    rendement_kg_ha:   parseFloat(rendement.toFixed(1)),
+    statut, tauxMarge_pct: tauxMarge,
+    createdAt: serverTimestamp()
+  };
 
-// Production
-surface,
-palmiers: parseInt(document.getElementById('f_palmiers').value) || 0,
-production,
-pertes,
+  const btn = document.getElementById('btnSave');
+  btn.textContent = '⏳ Envoi en cours…';
+  btn.disabled = true;
 
-// Charges
-mo, intrants, eau, recolte, transport, cert, amort, autres,
-
-// Prix
-pv,
-
-// ✅ Valeurs calculées
-totalCharges: parseFloat(totalCharges.toFixed(3)),
-netProd: parseFloat(netProd.toFixed(3)),
-coutRevient_DT_kg: parseFloat(coutRevient.toFixed(3)),
-margeBrute_DT_kg: parseFloat(margeBrute.toFixed(3)),
-rendement_kg_ha: parseFloat(rendement.toFixed(1)),
-statut,
-tauxMarge_pct: tauxMarge,
-
-createdAt: serverTimestamp()
-};
-
-const btn = document.getElementById('btnSave');
-btn.textContent = '⏳ Envoi en cours…';
-btn.disabled = true;
-
-try {
-await addDoc(collection(db, 'saisons'), rec);
-['f_surface','f_palmiers','f_production','f_pertes','f_mo','f_intrants',
-'f_eau','f_recolte','f_transport','f_cert','f_amort','f_autres','f_pv',
-'f_nom','f_region','f_notes'].forEach(id => document.getElementById(id).value = '');
-document.getElementById('liveResult').style.display = 'none';
-toast('✅ Données envoyées avec succès !');
-} catch(e) {
-toast('❌ Erreur : ' + e.message);
-} finally {
-btn.textContent = '📤 Envoyer mes données';
-btn.disabled = false;
-}
+  try {
+    await addDoc(collection(db, 'saisons'), rec);
+    ['f_surface','f_palmiers','f_production','f_pertes','f_mo','f_intrants',
+     'f_eau','f_recolte','f_transport','f_cert','f_amort','f_autres','f_pv',
+     'f_nom','f_region','f_notes'].forEach(id => document.getElementById(id).value = '');
+    document.getElementById('liveResult').style.display = 'none';
+    toast('✅ Données envoyées avec succès !');
+  } catch(e) {
+    toast('❌ Erreur : ' + e.message);
+  } finally {
+    btn.textContent = '📤 Envoyer mes données';
+    btn.disabled = false;
+  }
 };
 </script>
 
 <style>
 *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
-:root{
---bg:#f7f3ee;--card:#fff;--brown:#2c1810;--terra:#8b3a1a;
---gold:#c8860a;--amber:#e8a020;--bio:#5a9e3a;--conv:#c07820;
---muted:#9a8070;--border:#e8ddd0;--sand:#f0e8d8;
---shadow:rgba(44,24,16,0.10);
-}
+:root{--bg:#f7f3ee;--card:#fff;--brown:#2c1810;--terra:#8b3a1a;--gold:#c8860a;--amber:#e8a020;--bio:#5a9e3a;--conv:#c07820;--muted:#9a8070;--border:#e8ddd0;--sand:#f0e8d8;--shadow:rgba(44,24,16,0.10)}
 body{font-family:'DM Mono',monospace;background:var(--bg);color:var(--brown);min-height:100vh}
 .wrap{max-width:480px;margin:0 auto;padding:20px 16px 80px}
 .page-header{margin-bottom:24px}
@@ -151,159 +122,129 @@ body{font-family:'DM Mono',monospace;background:var(--bg);color:var(--brown);min
 .toast{position:fixed;bottom:30px;left:50%;transform:translateX(-50%) translateY(20px);background:var(--brown);color:#fff;padding:10px 20px;border-radius:20px;font-size:0.78rem;opacity:0;transition:all .3s;pointer-events:none;z-index:999;white-space:nowrap}
 .toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
 </style>
-
 </head>
 <body>
 <div class="wrap">
+  <div class="page-header">
+    <h2>🌴 Saisie de production</h2>
+    <p>Dattes — Oasis du Sud Tunisien</p>
+    <p>Vos données seront enregistrées automatiquement</p>
+  </div>
 
-<div class="page-header">
-<h2>🌴 Saisie de production</h2>
-<p>Dattes — Oasis du Sud Tunisien</p>
-<p>Vos données seront enregistrées automatiquement</p>
-</div>
+  <div class="card">
+    <div class="card-title">📅 Identification</div>
+    <div class="row2">
+      <div class="field"><label>Année</label><input type="number" id="f_annee" value="2024" min="2000" max="2099"></div>
+      <div class="field"><label>Mode culture</label>
+        <select id="f_mode">
+          <option value="bio">🌱 Bio certifié</option>
+          <option value="conv">🌾 Conventionnel</option>
+          <option value="trans">🔄 Transition</option>
+        </select>
+      </div>
+    </div>
+    <div class="row2">
+      <div class="field"><label>Nom / Exploitation</label><input type="text" id="f_nom" placeholder="Ex: Ferme Ben Ali"></div>
+      <div class="field"><label>Gouvernorat</label>
+        <select id="f_region">
+          <option value="">-- Choisir --</option>
+          <option value="Kébili">🌴 Kébili</option>
+          <option value="Tozeur">🌴 Tozeur</option>
+          <option value="Gabès">🌴 Gabès</option>
+          <option value="Gafsa">🌴 Gafsa</option>
+        </select>
+      </div>
+    </div>
+  </div>
 
-<div class="card">
-<div class="card-title">📅 Identification</div>
-<div class="row2">
-<div class="field"><label>Année</label><input type="number" id="f_annee" value="2024" min="2000" max="2099"></div>
-<div class="field"><label>Mode culture</label>
-<select id="f_mode">
-<option value="bio">🌱 Bio certifié</option>
-<option value="conv">🌾 Conventionnel</option>
-<option value="trans">🔄 Transition</option>
-</select>
-</div>
-</div>
-<div class="row2">
-<div class="field"><label>Nom / Exploitation</label><input type="text" id="f_nom" placeholder="Ex: Ferme Ben Ali"></div>
-<div class="field"><label>Région</label><input type="text" id="f_region" placeholder="Ex: Tozeur"></div>
-</div>
-</div>
+  <div class="card">
+    <div class="card-title">🌳 Production</div>
+    <div class="row2">
+      <div class="field"><label>Surface (ha)</label><input type="number" id="f_surface" placeholder="0.00" step="0.1" min="0"><div class="unit">Hectares</div></div>
+      <div class="field"><label>Nb palmiers</label><input type="number" id="f_palmiers" placeholder="0" min="0"><div class="unit">Productifs</div></div>
+    </div>
+    <div class="row2">
+      <div class="field"><label>Production (kg)</label><input type="number" id="f_production" placeholder="0" min="0" oninput="calcLive()"><div class="unit">kg récoltés</div></div>
+      <div class="field"><label>Pertes (kg)</label><input type="number" id="f_pertes" placeholder="0" min="0" oninput="calcLive()"><div class="unit">kg non vendus</div></div>
+    </div>
+  </div>
 
-<div class="card">
-<div class="card-title">🌳 Production</div>
-<div class="row2">
-<div class="field"><label>Surface (ha)</label><input type="number" id="f_surface" placeholder="0.00" step="0.1" min="0"><div class="unit">Hectares</div></div>
-<div class="field"><label>Nb palmiers</label><input type="number" id="f_palmiers" placeholder="0" min="0"><div class="unit">Productifs</div></div>
-</div>
-<div class="row2">
-<div class="field"><label>Production (kg)</label><input type="number" id="f_production" placeholder="0" min="0" oninput="calcLive()"><div class="unit">kg récoltés</div></div>
-<div class="field"><label>Pertes (kg)</label><input type="number" id="f_pertes" placeholder="0" min="0" oninput="calcLive()"><div class="unit">kg non vendus</div></div>
-</div>
-</div>
+  <div class="card">
+    <div class="card-title">💸 Charges (DT)</div>
+    <div class="row2">
+      <div class="field"><label>Main d'œuvre</label><input type="number" id="f_mo" placeholder="0" min="0" oninput="calcLive()"></div>
+      <div class="field"><label>Intrants</label><input type="number" id="f_intrants" placeholder="0" min="0" oninput="calcLive()"><div class="unit">Compost, engrais…</div></div>
+    </div>
+    <div class="row2">
+      <div class="field"><label>Eau & irrigation</label><input type="number" id="f_eau" placeholder="0" min="0" oninput="calcLive()"></div>
+      <div class="field"><label>Récolte & tri</label><input type="number" id="f_recolte" placeholder="0" min="0" oninput="calcLive()"></div>
+    </div>
+    <div class="row2">
+      <div class="field"><label>Transport</label><input type="number" id="f_transport" placeholder="0" min="0" oninput="calcLive()"></div>
+      <div class="field"><label>Certification bio</label><input type="number" id="f_cert" placeholder="0" min="0" oninput="calcLive()"><div class="unit">ONAB + labels</div></div>
+    </div>
+    <div class="row2">
+      <div class="field"><label>Amortissement</label><input type="number" id="f_amort" placeholder="0" min="0" oninput="calcLive()"><div class="unit">Quote-part annuelle</div></div>
+      <div class="field"><label>Autres charges</label><input type="number" id="f_autres" placeholder="0" min="0" oninput="calcLive()"></div>
+    </div>
+  </div>
 
-<div class="card">
-<div class="card-title">💸 Charges (DT)</div>
-<div class="row2">
-<div class="field"><label>Main d'œuvre</label><input type="number" id="f_mo" placeholder="0" min="0" oninput="calcLive()"></div>
-<div class="field"><label>Intrants</label><input type="number" id="f_intrants" placeholder="0" min="0" oninput="calcLive()"><div class="unit">Compost, engrais…</div></div>
-</div>
-<div class="row2">
-<div class="field"><label>Eau & irrigation</label><input type="number" id="f_eau" placeholder="0" min="0" oninput="calcLive()"></div>
-<div class="field"><label>Récolte & tri</label><input type="number" id="f_recolte" placeholder="0" min="0" oninput="calcLive()"></div>
-</div>
-<div class="row2">
-<div class="field"><label>Transport</label><input type="number" id="f_transport" placeholder="0" min="0" oninput="calcLive()"></div>
-<div class="field"><label>Certification bio</label><input type="number" id="f_cert" placeholder="0" min="0" oninput="calcLive()"><div class="unit">ONAB + labels</div></div>
-</div>
-<div class="row2">
-<div class="field"><label>Amortissement</label><input type="number" id="f_amort" placeholder="0" min="0" oninput="calcLive()"><div class="unit">Quote-part annuelle</div></div>
-<div class="field"><label>Autres charges</label><input type="number" id="f_autres" placeholder="0" min="0" oninput="calcLive()"></div>
-</div>
-</div>
+  <div class="card">
+    <div class="card-title">💰 Prix de vente</div>
+    <div class="row2">
+      <div class="field"><label>Prix vente (DT/kg)</label><input type="number" id="f_pv" placeholder="0.00" step="0.01" min="0" oninput="calcLive()"></div>
+      <div class="field"><label>Canal de vente</label>
+        <select id="f_canal">
+          <option value="gros">Marché de gros</option>
+          <option value="direct">Vente directe</option>
+          <option value="export">Export</option>
+          <option value="coop">Coopérative</option>
+          <option value="autre">Autre</option>
+        </select>
+      </div>
+    </div>
+    <div class="field"><label>Notes / Observations</label><textarea id="f_notes" placeholder="Conditions météo, observations…"></textarea></div>
+  </div>
 
-<div class="card">
-<div class="card-title">💰 Prix de vente</div>
-<div class="row2">
-<div class="field"><label>Prix vente (DT/kg)</label><input type="number" id="f_pv" placeholder="0.00" step="0.01" min="0" oninput="calcLive()"></div>
-<div class="field"><label>Canal de vente</label>
-<select id="f_canal">
-<option value="gros">Marché de gros</option>
-<option value="direct">Vente directe</option>
-<option value="export">Export</option>
-<option value="coop">Coopérative</option>
-<option value="autre">Autre</option>
-</select>
-</div>
-</div>
-<div class="field"><label>Notes / Observations</label><textarea id="f_notes" placeholder="Conditions météo, observations…"></textarea></div>
-</div>
+  <div class="card" id="liveResult" style="border:2px solid var(--amber);display:none">
+    <div class="card-title" style="color:var(--gold)">⚡ Calcul en direct</div>
+    <div class="kpi-grid">
+      <div class="kpi-box"><div class="kpi-val" id="live_cout" style="color:var(--terra)">—</div><div class="kpi-lbl">Coût revient</div><div class="kpi-unit">DT/kg</div></div>
+      <div class="kpi-box"><div class="kpi-val" id="live_marge">—</div><div class="kpi-lbl">Marge brute</div><div class="kpi-unit">DT/kg</div></div>
+      <div class="kpi-box"><div class="kpi-val" id="live_total" style="color:var(--brown)">—</div><div class="kpi-lbl">Total charges</div><div class="kpi-unit">DT</div></div>
+      <div class="kpi-box"><div class="kpi-val" id="live_rdt" style="color:var(--gold)">—</div><div class="kpi-lbl">Rendement</div><div class="kpi-unit">kg/ha</div></div>
+    </div>
+    <div id="live_alert" class="alert"></div>
+  </div>
 
-<!-- CALCUL EN DIRECT -->
-
-<div class="card" id="liveResult" style="border:2px solid var(--amber);display:none">
-<div class="card-title" style="color:var(--gold)">⚡ Calcul en direct</div>
-<div class="kpi-grid">
-<div class="kpi-box">
-<div class="kpi-val" id="live_cout" style="color:var(--terra)">—</div>
-<div class="kpi-lbl">Coût revient</div>
-<div class="kpi-unit">DT/kg</div>
-</div>
-<div class="kpi-box">
-<div class="kpi-val" id="live_marge">—</div>
-<div class="kpi-lbl">Marge brute</div>
-<div class="kpi-unit">DT/kg</div>
-</div>
-<div class="kpi-box">
-<div class="kpi-val" id="live_total" style="color:var(--brown)">—</div>
-<div class="kpi-lbl">Total charges</div>
-<div class="kpi-unit">DT</div>
-</div>
-<div class="kpi-box">
-<div class="kpi-val" id="live_rdt" style="color:var(--gold)">—</div>
-<div class="kpi-lbl">Rendement</div>
-<div class="kpi-unit">kg/ha</div>
-</div>
-</div>
-<div id="live_alert" class="alert"></div>
-</div>
-
-<button id="btnSave" class="btn btn-primary btn-full" onclick="sauvegarder()">
-📤 Envoyer mes données
-</button>
-
+  <button id="btnSave" class="btn btn-primary btn-full" onclick="sauvegarder()">
+    📤 Envoyer mes données
+  </button>
 </div>
 
 <div class="toast" id="toast"></div>
 
 <script>
-function calcLive() {
-const v = id => parseFloat(document.getElementById(id).value) || 0;
-const prod = v('f_production'), pertes = v('f_pertes'), pv = v('f_pv'), surface = v('f_surface');
-const totalCharges = v('f_mo')+v('f_intrants')+v('f_eau')+v('f_recolte')+
-v('f_transport')+v('f_cert')+v('f_amort')+v('f_autres');
-const div = document.getElementById('liveResult');
-if (totalCharges > 0 || prod > 0) {
-div.style.display = 'block';
-const netProd = prod - pertes;
-const cout = netProd > 0 ? totalCharges / netProd : 0;
-const marge = pv - cout;
-const rdt = surface > 0 ? prod / surface : 0;
-document.getElementById('live_cout').textContent = cout.toFixed(3);
-document.getElementById('live_marge').textContent = (marge >= 0 ? '+' : '') + marge.toFixed(3);
-document.getElementById('live_marge').style.color = marge >= 0 ? 'var(--bio)' : '#dc3545';
-document.getElementById('live_total').textContent = totalCharges.toFixed(0);
-document.getElementById('live_rdt').textContent = rdt > 0 ? Math.round(rdt) : '—';
-const a = document.getElementById('live_alert');
-if (!cout) { a.className='alert'; a.textContent=''; }
-else if (marge > 0) {
-a.className='alert alert-success';
-a.textContent=`✅ Rentable : +${marge.toFixed(3)} DT/kg (${((marge/cout)*100).toFixed(0)}%)`;
-} else {
-a.className='alert alert-info';
-a.textContent=`⚠️ Déficitaire de ${Math.abs(marge).toFixed(3)} DT/kg`;
+function calcLive(){
+  const v=id=>parseFloat(document.getElementById(id).value)||0;
+  const prod=v('f_production'),pertes=v('f_pertes'),pv=v('f_pv'),surface=v('f_surface');
+  const tc=v('f_mo')+v('f_intrants')+v('f_eau')+v('f_recolte')+v('f_transport')+v('f_cert')+v('f_amort')+v('f_autres');
+  const div=document.getElementById('liveResult');
+  if(tc>0||prod>0){
+    div.style.display='block';
+    const net=prod-pertes,cout=net>0?tc/net:0,marge=pv-cout,rdt=surface>0?prod/surface:0;
+    document.getElementById('live_cout').textContent=cout.toFixed(3);
+    document.getElementById('live_marge').textContent=(marge>=0?'+':'')+marge.toFixed(3);
+    document.getElementById('live_marge').style.color=marge>=0?'var(--bio)':'#dc3545';
+    document.getElementById('live_total').textContent=tc.toFixed(0);
+    document.getElementById('live_rdt').textContent=rdt>0?Math.round(rdt):'—';
+    const a=document.getElementById('live_alert');
+    if(!cout){a.className='alert';a.textContent='';}
+    else if(marge>0){a.className='alert alert-success';a.textContent=`✅ Rentable : +${marge.toFixed(3)} DT/kg (${((marge/cout)*100).toFixed(0)}%)`;}
+    else{a.className='alert alert-info';a.textContent=`⚠️ Déficitaire de ${Math.abs(marge).toFixed(3)} DT/kg`;}
+  } else { div.style.display='none'; }
 }
-} else { div.style.display='none'; }
-}
-
-function toast(msg) {
-const el = document.getElementById('toast');
-el.textContent = msg;
-el.classList.add('show');
-setTimeout(() => el.classList.remove('show'), 3000);
-}
+function toast(msg){const el=document.getElementById('toast');el.textContent=msg;el.classList.add('show');setTimeout(()=>el.classList.remove('show'),3000);}
 </script>
-
 </body>
 </html>
-
