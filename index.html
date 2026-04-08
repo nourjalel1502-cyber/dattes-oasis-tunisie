@@ -1,14 +1,12 @@
 <!DOCTYPE html>
-<html lang="fr">
+<html lang="fr" dir="ltr" id="htmlRoot">
 <head>
 <meta charset="UTF-8">
-<link rel="manifest" href="/dattes-oasis-tunisie/manifest.json">
-<meta name="theme-color" content="#2c1810">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <link rel="manifest" href="/dattes-oasis-tunisie/manifest.json">
 <meta name="theme-color" content="#2c1810">
-<title>Estimation coût de production — Dattes Sud Tunisien</title>
-<link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700;800&family=DM+Mono:wght@300;400;500&display=swap" rel="stylesheet">
+<title>تكلفة إنتاج التمور — Coût production Dattes</title>
+<link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700;800&family=DM+Mono:wght@300;400;500&family=Amiri:wght@400;700&display=swap" rel="stylesheet">
 
 <script type="module">
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
@@ -27,36 +25,9 @@ const firebaseConfig = {
 const app = initializeApp(firebaseConfig);
 const db  = getFirestore(app);
 
-// ── TRADUCTION ARABE → FRANÇAIS ───────────────
-const traductions = {
-  // Mode de culture
-  'بيولوجي': 'bio', 'عضوي': 'bio',
-  'تقليدي': 'conv', 'اعتيادي': 'conv',
-  'انتقالي': 'trans',
-  // Gouvernorats
-  'توزر': 'Tozeur', 'قبلي': 'Kébili',
-  'قابس': 'Gabès', 'قفصة': 'Gafsa',
-  'مدنين': 'Médenine', 'تطاوين': 'Tataouine',
-  // Type d'oasis
-  'واحة تقليدية': 'Oasis traditionnelle',
-  'واحة حديثة': 'Oasis moderne',
-  'واحة منبسطة': 'Oasis de plaine',
-  'واحة جبلية': 'Oasis de montagne',
-  'واحة ساحلية': 'Oasis côtière',
-  // Canal
-  'بيع مباشر': 'direct', 'سوق الجملة': 'gros',
-  'تصدير': 'export', 'تعاونية': 'coop',
-};
-
-function traduire(texte) {
-  if (!texte) return '';
-  const t = texte.trim();
-  return traductions[t] || t;
-}
-
 window.sauvegarder = async () => {
   const annee = document.getElementById('f_annee').value;
-  if (!annee) { toast('⚠ Veuillez saisir une année / أدخل السنة'); return; }
+  if (!annee) { toast(lang === 'ar' ? '⚠ أدخل السنة' : '⚠ Veuillez saisir une année'); return; }
   const v = id => parseFloat(document.getElementById(id).value) || 0;
 
   const production = v('f_production');
@@ -69,7 +40,8 @@ window.sauvegarder = async () => {
   const cert       = v('f_cert');
   const amort      = v('f_amort');
   const autres     = v('f_autres');
-  const pv         = v('f_pv');
+  const pv_millimes= v('f_pv');
+  const pv         = pv_millimes / 1000;
   const surface    = v('f_surface');
 
   const totalCharges = mo+intrants+eau+recolte+transport+cert+amort+autres;
@@ -79,46 +51,49 @@ window.sauvegarder = async () => {
   const rendement    = surface > 0 ? production / surface : 0;
   const statut       = coutRevient === 0 ? 'non calculé' : margeBrute > 0 ? 'rentable' : 'déficitaire';
   const tauxMarge    = coutRevient > 0 ? parseFloat(((margeBrute/coutRevient)*100).toFixed(2)) : 0;
-
-  // Traduire les champs texte
-  const mode        = traduire(document.getElementById('f_mode').value);
-  const gouvernorat = traduire(document.getElementById('f_gouvernorat').value);
-  const delegation  = document.getElementById('f_delegation').value || '';
-  const typeOasis   = traduire(document.getElementById('f_type_oasis').value);
-  const nom         = document.getElementById('f_nom').value || 'Sans nom';
-  const canal       = traduire(document.getElementById('f_canal').value);
-  const notes       = document.getElementById('f_notes').value || '';
+  const prixParcelle = parseFloat((pv * netProd).toFixed(3));
 
   const rec = {
-    annee:      parseInt(annee),
-    mode, nom, gouvernorat, delegation, typeOasis, canal, notes,
+    annee:        parseInt(annee),
+    mode:         document.getElementById('f_mode').value,
+    nom:          document.getElementById('f_nom').value || 'Sans nom',
+    gouvernorat:  document.getElementById('f_gouvernorat').value || '',
+    delegation:   document.getElementById('f_delegation').value || '',
+    type_oasis:   document.getElementById('f_type_oasis').value || '',
+    canal:        document.getElementById('f_canal').value,
+    notes:        document.getElementById('f_notes').value || '',
     surface, palmiers: parseInt(document.getElementById('f_palmiers').value)||0,
     production, pertes,
-    mo, intrants, eau, recolte, transport, cert, amort, autres, pv,
-    totalCharges:      parseFloat(totalCharges.toFixed(3)),
-    netProd:           parseFloat(netProd.toFixed(3)),
-    coutRevient_DT_kg: parseFloat(coutRevient.toFixed(3)),
-    margeBrute_DT_kg:  parseFloat(margeBrute.toFixed(3)),
-    rendement_kg_ha:   parseFloat(rendement.toFixed(1)),
+    mo, intrants, eau, recolte, transport, cert, amort, autres,
+    pv_millimes, pv,
+    prixParcelle_DT: prixParcelle,
+    totalCharges:       parseFloat(totalCharges.toFixed(3)),
+    netProd:            parseFloat(netProd.toFixed(3)),
+    coutRevient_DT_kg:  parseFloat(coutRevient.toFixed(3)),
+    margeBrute_DT_kg:   parseFloat(margeBrute.toFixed(3)),
+    rendement_kg_ha:    parseFloat(rendement.toFixed(1)),
     statut, tauxMarge_pct: tauxMarge,
+    langue: window.lang || 'fr',
     createdAt: serverTimestamp()
   };
 
   const btn = document.getElementById('btnSave');
-  btn.textContent = '⏳ Envoi… / جارٍ الإرسال…';
+  btn.textContent = lang === 'ar' ? '⏳ جارٍ الإرسال…' : '⏳ Envoi en cours…';
   btn.disabled = true;
 
   try {
     await addDoc(collection(db, 'saisons'), rec);
     ['f_surface','f_palmiers','f_production','f_pertes','f_mo','f_intrants',
      'f_eau','f_recolte','f_transport','f_cert','f_amort','f_autres','f_pv',
-     'f_nom','f_delegation','f_notes'].forEach(id => document.getElementById(id).value = '');
+     'f_prix_parcelle','f_nom','f_notes'].forEach(id => document.getElementById(id).value = '');
+    document.getElementById('f_gouvernorat').value = '';
+    document.getElementById('f_delegation').innerHTML = `<option value="">${lang==='ar'?'— اختر الولاية أولاً —':'— Choisir le gouvernorat —'}</option>`;
     document.getElementById('liveResult').style.display = 'none';
-    toast('✅ Données envoyées ! / تم الإرسال بنجاح !');
+    toast(lang === 'ar' ? '✅ تم إرسال البيانات بنجاح!' : '✅ Données envoyées avec succès !');
   } catch(e) {
-    toast('❌ Erreur : ' + e.message);
+    toast('❌ ' + e.message);
   } finally {
-    btn.textContent = '📤 Envoyer / إرسال';
+    btn.textContent = lang === 'ar' ? '📤 إرسال البيانات' : '📤 Envoyer mes données';
     btn.disabled = false;
   }
 };
@@ -126,165 +101,210 @@ window.sauvegarder = async () => {
 
 <style>
 *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
-:root{--bg:#f7f3ee;--card:#fff;--brown:#2c1810;--terra:#8b3a1a;--gold:#c8860a;--amber:#e8a020;--bio:#5a9e3a;--conv:#c07820;--muted:#9a8070;--border:#e8ddd0;--sand:#f0e8d8;--shadow:rgba(44,24,16,0.10)}
+:root{
+  --bg:#f7f3ee;--card:#fff;--brown:#2c1810;--terra:#8b3a1a;
+  --gold:#c8860a;--amber:#e8a020;--bio:#5a9e3a;--conv:#c07820;
+  --muted:#9a8070;--border:#e8ddd0;--sand:#f0e8d8;
+  --shadow:rgba(44,24,16,0.10);
+}
 body{font-family:'DM Mono',monospace;background:var(--bg);color:var(--brown);min-height:100vh}
+body.ar{font-family:'Amiri',serif;direction:rtl}
+body.ar .row2{direction:rtl}
+
+/* LANG TOGGLE */
+.lang-bar{background:var(--brown);padding:10px 16px;display:flex;justify-content:space-between;align-items:center;position:sticky;top:0;z-index:100}
+.lang-bar .app-name{font-family:'Syne',sans-serif;font-size:0.8rem;color:rgba(255,255,255,0.7);letter-spacing:1px}
+.lang-toggle{display:flex;gap:6px}
+.lang-btn{padding:5px 12px;border:1.5px solid rgba(255,255,255,0.3);border-radius:20px;background:transparent;color:rgba(255,255,255,0.6);font-size:0.75rem;font-weight:600;cursor:pointer;transition:all .2s}
+.lang-btn.active{background:#fff;color:var(--brown);border-color:#fff}
+
 .wrap{max-width:480px;margin:0 auto;padding:20px 16px 80px}
 .page-header{margin-bottom:24px;text-align:center}
 .page-header h2{font-family:'Syne',sans-serif;font-size:1.5rem;font-weight:800;color:var(--terra)}
-.page-header .ar{font-family:'DM Mono',monospace;font-size:1rem;color:var(--terra);direction:rtl;margin-top:4px}
-.page-header p{font-size:0.72rem;color:var(--muted);margin-top:4px}
+body.ar .page-header h2{font-family:'Amiri',serif;font-size:1.8rem}
+.page-header p{font-size:0.75rem;color:var(--muted);margin-top:4px}
+.version-badge{display:inline-block;background:var(--amber);color:#fff;font-size:0.6rem;padding:2px 8px;border-radius:10px;margin-top:6px;font-weight:700;letter-spacing:1px}
+
 .card{background:var(--card);border:1px solid var(--border);border-radius:16px;padding:18px;margin-bottom:14px;box-shadow:0 2px 12px var(--shadow)}
 .card-title{font-family:'Syne',sans-serif;font-size:0.8rem;font-weight:700;letter-spacing:1.5px;text-transform:uppercase;color:var(--terra);margin-bottom:14px}
+body.ar .card-title{font-family:'Amiri',serif;font-size:1rem;letter-spacing:0;text-transform:none}
+
 .field{margin-bottom:12px}
 .field label{display:block;font-size:0.68rem;letter-spacing:1px;text-transform:uppercase;color:var(--muted);margin-bottom:5px;font-weight:500}
-.field label .ar-label{display:block;font-size:0.75rem;color:var(--muted);direction:rtl;letter-spacing:0;text-transform:none;margin-top:2px}
+body.ar .field label{font-family:'Amiri',serif;font-size:0.85rem;letter-spacing:0;text-transform:none}
 .field input,.field select,.field textarea{width:100%;padding:10px 13px;background:var(--sand);border:1.5px solid var(--border);border-radius:10px;font-family:'DM Mono',monospace;font-size:0.88rem;color:var(--brown);outline:none;transition:border-color .2s}
+body.ar .field input,body.ar .field select,body.ar .field textarea{font-family:'Amiri',serif;font-size:1rem;text-align:right}
 .field input:focus,.field select:focus{border-color:var(--amber);box-shadow:0 0 0 3px rgba(200,134,10,0.12)}
 .field textarea{resize:vertical;min-height:60px}
 .field .unit{font-size:0.68rem;color:var(--muted);margin-top:3px}
+body.ar .field .unit{font-family:'Amiri',serif;font-size:0.8rem}
 .field select{appearance:none;background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6'%3E%3Cpath d='M0 0l5 6 5-6z' fill='%239a8070'/%3E%3C/svg%3E");background-repeat:no-repeat;background-position:right 12px center}
+body.ar .field select{background-position:left 12px center}
 .row2{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+
+/* PRIX CORRÉLÉ */
+.prix-link{display:flex;align-items:center;justify-content:center;color:var(--amber);font-size:1.2rem;padding-top:28px}
+
 .btn{display:inline-flex;align-items:center;justify-content:center;gap:6px;padding:12px 20px;border:none;border-radius:10px;font-family:'Syne',sans-serif;font-size:0.82rem;font-weight:700;cursor:pointer;transition:all .2s}
+body.ar .btn{font-family:'Amiri',serif;font-size:1rem}
 .btn-primary{background:var(--terra);color:#fff}.btn-primary:hover{background:var(--brown)}
 .btn-full{width:100%}
 .btn:disabled{opacity:.5;cursor:not-allowed}
+
 .kpi-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:14px}
 .kpi-box{background:var(--card);border:1px solid var(--border);border-radius:14px;padding:14px;text-align:center}
 .kpi-val{font-family:'Syne',sans-serif;font-size:1.5rem;font-weight:800;line-height:1}
 .kpi-lbl{font-size:0.6rem;color:var(--muted);letter-spacing:1px;text-transform:uppercase;margin-top:4px}
+body.ar .kpi-lbl{font-family:'Amiri',serif;font-size:0.78rem;letter-spacing:0;text-transform:none}
 .kpi-unit{font-size:0.68rem;color:var(--muted);margin-top:2px}
+
 .alert{padding:12px 14px;border-radius:10px;font-size:0.8rem;margin-bottom:0;line-height:1.5}
+body.ar .alert{font-family:'Amiri',serif;font-size:0.95rem}
 .alert-success{background:rgba(90,158,58,0.12);border:1px solid rgba(90,158,58,0.3);color:var(--bio)}
 .alert-info{background:rgba(200,134,10,0.1);border:1px solid rgba(200,134,10,0.25);color:var(--gold)}
+
 .toast{position:fixed;bottom:30px;left:50%;transform:translateX(-50%) translateY(20px);background:var(--brown);color:#fff;padding:10px 20px;border-radius:20px;font-size:0.78rem;opacity:0;transition:all .3s;pointer-events:none;z-index:999;white-space:nowrap}
 .toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
 </style>
 </head>
 <body>
+
+<!-- BARRE DE LANGUE -->
+<div class="lang-bar">
+  <span class="app-name">🌴 Dattes Oasis — v1</span>
+  <div class="lang-toggle">
+    <button class="lang-btn active" onclick="setLang('fr')">FR</button>
+    <button class="lang-btn" onclick="setLang('ar')">ع</button>
+  </div>
+</div>
+
 <div class="wrap">
   <div class="page-header">
-    <h2>🌴 Saisie de production</h2>
-    <div class="ar">تسجيل بيانات الإنتاج</div>
-    <p>Dattes — Oasis du Sud Tunisien · يمكنك الكتابة بالعربية أو الفرنسية</p>
+    <h2 id="t_titre">🌴 Saisie de production</h2>
+    <p id="t_sous">Dattes — Oasis du Sud Tunisien</p>
+    <p id="t_info">Vos données seront enregistrées automatiquement</p>
+    <span class="version-badge">VERSION 1</span>
   </div>
 
   <!-- IDENTIFICATION -->
   <div class="card">
-    <div class="card-title">📅 Identification / التعريف</div>
+    <div class="card-title" id="t_identification">📅 Identification</div>
     <div class="row2">
       <div class="field">
-        <label>Année / السنة</label>
+        <label id="t_annee">Année</label>
         <input type="number" id="f_annee" value="2024" min="2000" max="2099">
       </div>
       <div class="field">
-        <label>Mode culture / نمط الزراعة</label>
+        <label id="t_mode">Mode culture</label>
         <select id="f_mode">
-          <option value="bio">🌱 Bio / عضوي</option>
+          <option value="bio">🌱 Bio certifié / عضوي</option>
           <option value="conv">🌾 Conventionnel / تقليدي</option>
           <option value="trans">🔄 Transition / انتقالي</option>
         </select>
       </div>
     </div>
-    <div class="field">
-      <label>Nom / Exploitation <span class="ar-label">الاسم / المزرعة</span></label>
-      <input type="text" id="f_nom" placeholder="Ex: Ferme Ben Ali / مزرعة بن علي">
-    </div>
-  </div>
-
-  <!-- LOCALISATION -->
-  <div class="card">
-    <div class="card-title">📍 Localisation / الموقع</div>
     <div class="row2">
       <div class="field">
-        <label>Gouvernorat / الولاية</label>
-        <select id="f_gouvernorat">
-          <option value="">-- Choisir / اختر --</option>
-          <option value="Tozeur">Tozeur / توزر</option>
-          <option value="Kébili">Kébili / قبلي</option>
-          <option value="Gabès">Gabès / قابس</option>
-          <option value="Gafsa">Gafsa / قفصة</option>
-          <option value="Médenine">Médenine / مدنين</option>
-          <option value="Tataouine">Tataouine / تطاوين</option>
+        <label id="t_nom">Nom / Exploitation</label>
+        <input type="text" id="f_nom" placeholder="Ex: Ferme Ben Ali">
+      </div>
+      <div class="field">
+        <label id="t_type_oasis">Type d'oasis</label>
+        <select id="f_type_oasis">
+          <option value="publique">🏛 Publique / عمومية</option>
+          <option value="privee">🏡 Privée / خاصة</option>
+        </select>
+      </div>
+    </div>
+    <div class="row2">
+      <div class="field">
+        <label id="t_gouvernorat">Gouvernorat</label>
+        <select id="f_gouvernorat" onchange="majDelegations()">
+          <option value="">— Choisir —</option>
+          <option value="kebili">Kébili / قبلي</option>
+          <option value="tozeur">Tozeur / توزر</option>
+          <option value="gabes">Gabès / قابس</option>
+          <option value="gafsa">Gafsa / قفصة</option>
         </select>
       </div>
       <div class="field">
-        <label>Délégation / المعتمدية</label>
-        <input type="text" id="f_delegation" placeholder="Ex: Nefta / نفطة">
+        <label id="t_delegation">Délégation</label>
+        <select id="f_delegation">
+          <option value="">— Choisir le gouvernorat —</option>
+        </select>
       </div>
-    </div>
-    <div class="field">
-      <label>Type d'oasis / نوع الواحة</label>
-      <select id="f_type_oasis">
-        <option value="">-- Choisir / اختر --</option>
-        <option value="Oasis traditionnelle">Oasis traditionnelle / واحة تقليدية</option>
-        <option value="Oasis moderne">Oasis moderne / واحة حديثة</option>
-        <option value="Oasis de plaine">Oasis de plaine / واحة منبسطة</option>
-        <option value="Oasis de montagne">Oasis de montagne / واحة جبلية</option>
-        <option value="Oasis côtière">Oasis côtière / واحة ساحلية</option>
-      </select>
     </div>
   </div>
 
   <!-- PRODUCTION -->
   <div class="card">
-    <div class="card-title">🌳 Production / الإنتاج</div>
+    <div class="card-title" id="t_production">🌳 Production</div>
     <div class="row2">
       <div class="field">
-        <label>Surface (ha) / المساحة</label>
-        <input type="number" id="f_surface" placeholder="0.00" step="0.1" min="0">
-        <div class="unit">Hectares / هكتار</div>
+        <label id="t_surface">Surface (ha)</label>
+        <input type="number" id="f_surface" placeholder="0.00" step="0.1" min="0" oninput="calcLive()">
+        <div class="unit" id="t_surface_u">Hectares de palmeraie</div>
       </div>
       <div class="field">
-        <label>Nb palmiers / عدد النخيل</label>
+        <label id="t_palmiers">Nb palmiers</label>
         <input type="number" id="f_palmiers" placeholder="0" min="0">
-        <div class="unit">Productifs / المنتجة</div>
+        <div class="unit" id="t_palmiers_u">Palmiers productifs</div>
       </div>
     </div>
     <div class="row2">
       <div class="field">
-        <label>Production (kg) / الإنتاج</label>
-        <input type="number" id="f_production" placeholder="0" min="0" oninput="calcLive()">
-        <div class="unit">kg récoltés / كغ محصودة</div>
+        <label id="t_prod">Production (kg)</label>
+        <input type="number" id="f_production" placeholder="0" min="0" oninput="calcPrixParcelle();calcLive()">
+        <div class="unit" id="t_prod_u">kg récoltés</div>
       </div>
       <div class="field">
-        <label>Pertes (kg) / الخسائر</label>
-        <input type="number" id="f_pertes" placeholder="0" min="0" oninput="calcLive()">
-        <div class="unit">kg non vendus / كغ غير مباعة</div>
+        <label id="t_pertes">Pertes (kg)</label>
+        <input type="number" id="f_pertes" placeholder="0" min="0" oninput="calcPrixParcelle();calcLive()">
+        <div class="unit" id="t_pertes_u">kg non vendus</div>
       </div>
     </div>
   </div>
 
   <!-- CHARGES -->
   <div class="card">
-    <div class="card-title">💸 Charges (DT) / التكاليف</div>
+    <div class="card-title" id="t_charges">💸 Charges (DT)</div>
     <div class="row2">
-      <div class="field"><label>Main d'œuvre / اليد العاملة</label><input type="number" id="f_mo" placeholder="0" min="0" oninput="calcLive()"></div>
-      <div class="field"><label>Intrants / المدخلات</label><input type="number" id="f_intrants" placeholder="0" min="0" oninput="calcLive()"><div class="unit">Compost, engrais / سماد</div></div>
+      <div class="field"><label id="t_mo">Main d'œuvre</label><input type="number" id="f_mo" placeholder="0" min="0" oninput="calcLive()"></div>
+      <div class="field"><label id="t_intrants">Intrants</label><input type="number" id="f_intrants" placeholder="0" min="0" oninput="calcLive()"><div class="unit" id="t_intrants_u">Compost, engrais…</div></div>
     </div>
     <div class="row2">
-      <div class="field"><label>Eau / الماء</label><input type="number" id="f_eau" placeholder="0" min="0" oninput="calcLive()"></div>
-      <div class="field"><label>Récolte & tri / الحصاد</label><input type="number" id="f_recolte" placeholder="0" min="0" oninput="calcLive()"></div>
+      <div class="field"><label id="t_eau">Eau & irrigation</label><input type="number" id="f_eau" placeholder="0" min="0" oninput="calcLive()"></div>
+      <div class="field"><label id="t_recolte">Récolte & tri</label><input type="number" id="f_recolte" placeholder="0" min="0" oninput="calcLive()"></div>
     </div>
     <div class="row2">
-      <div class="field"><label>Transport / النقل</label><input type="number" id="f_transport" placeholder="0" min="0" oninput="calcLive()"></div>
-      <div class="field"><label>Certification / الشهادة</label><input type="number" id="f_cert" placeholder="0" min="0" oninput="calcLive()"><div class="unit">ONAB + labels</div></div>
+      <div class="field"><label id="t_transport">Transport</label><input type="number" id="f_transport" placeholder="0" min="0" oninput="calcLive()"></div>
+      <div class="field"><label id="t_cert">Certification bio</label><input type="number" id="f_cert" placeholder="0" min="0" oninput="calcLive()"><div class="unit">ONAB</div></div>
     </div>
     <div class="row2">
-      <div class="field"><label>Amortissement / الاستهلاك</label><input type="number" id="f_amort" placeholder="0" min="0" oninput="calcLive()"></div>
-      <div class="field"><label>Autres / أخرى</label><input type="number" id="f_autres" placeholder="0" min="0" oninput="calcLive()"></div>
+      <div class="field"><label id="t_amort">Amortissement</label><input type="number" id="f_amort" placeholder="0" min="0" oninput="calcLive()"></div>
+      <div class="field"><label id="t_autres">Autres charges</label><input type="number" id="f_autres" placeholder="0" min="0" oninput="calcLive()"></div>
     </div>
   </div>
 
-  <!-- PRIX -->
+  <!-- PRIX DE VENTE -->
   <div class="card">
-    <div class="card-title">💰 Prix de vente / سعر البيع</div>
-    <div class="row2">
+    <div class="card-title" id="t_prix">💰 Prix de vente</div>
+    <div style="display:grid;grid-template-columns:1fr auto 1fr;gap:8px;align-items:start">
       <div class="field">
-        <label>Prix (DT/kg) / السعر</label>
-        <input type="number" id="f_pv" placeholder="0.00" step="0.01" min="0" oninput="calcLive()">
+        <label id="t_pv">Prix unitaire (millimes/kg)</label>
+        <input type="number" id="f_pv" placeholder="0" step="1" min="0" oninput="calcPrixParcelle();calcLive()">
+        <div class="unit" id="t_pv_u">1500 millimes = 1.500 DT</div>
       </div>
+      <div class="prix-link">⇄</div>
       <div class="field">
-        <label>Canal / قناة البيع</label>
+        <label id="t_pp">Prix total parcelle (DT)</label>
+        <input type="number" id="f_prix_parcelle" placeholder="0.000" step="0.001" min="0" oninput="calcPrixUnitaire();calcLive()">
+        <div class="unit" id="t_pp_u">= Prix unitaire × Prod. nette</div>
+      </div>
+    </div>
+    <div class="row2" style="margin-top:4px">
+      <div class="field">
+        <label id="t_canal">Canal de vente</label>
         <select id="f_canal">
           <option value="gros">Marché de gros / سوق الجملة</option>
           <option value="direct">Vente directe / بيع مباشر</option>
@@ -293,53 +313,206 @@ body{font-family:'DM Mono',monospace;background:var(--bg);color:var(--brown);min
           <option value="autre">Autre / أخرى</option>
         </select>
       </div>
-    </div>
-    <div class="field">
-      <label>Notes / ملاحظات</label>
-      <textarea id="f_notes" placeholder="Observations… / ملاحظات…"></textarea>
+      <div class="field">
+        <label id="t_notes">Notes</label>
+        <textarea id="f_notes" placeholder="Observations…" style="min-height:42px"></textarea>
+      </div>
     </div>
   </div>
 
   <!-- CALCUL EN DIRECT -->
   <div class="card" id="liveResult" style="border:2px solid var(--amber);display:none">
-    <div class="card-title" style="color:var(--gold)">⚡ Calcul en direct / الحساب الفوري</div>
+    <div class="card-title" style="color:var(--gold)" id="t_calcul">⚡ Calcul en direct</div>
     <div class="kpi-grid">
-      <div class="kpi-box"><div class="kpi-val" id="live_cout" style="color:var(--terra)">—</div><div class="kpi-lbl">Coût revient</div><div class="kpi-unit">DT/kg</div></div>
-      <div class="kpi-box"><div class="kpi-val" id="live_marge">—</div><div class="kpi-lbl">Marge brute</div><div class="kpi-unit">DT/kg</div></div>
-      <div class="kpi-box"><div class="kpi-val" id="live_total" style="color:var(--brown)">—</div><div class="kpi-lbl">Total charges</div><div class="kpi-unit">DT</div></div>
-      <div class="kpi-box"><div class="kpi-val" id="live_rdt" style="color:var(--gold)">—</div><div class="kpi-lbl">Rendement</div><div class="kpi-unit">kg/ha</div></div>
+      <div class="kpi-box">
+        <div class="kpi-val" id="live_cout" style="color:var(--terra)">—</div>
+        <div class="kpi-lbl" id="t_k_cout">Coût revient</div>
+        <div class="kpi-unit">DT/kg</div>
+      </div>
+      <div class="kpi-box">
+        <div class="kpi-val" id="live_marge">—</div>
+        <div class="kpi-lbl" id="t_k_marge">Marge brute</div>
+        <div class="kpi-unit">DT/kg</div>
+      </div>
+      <div class="kpi-box">
+        <div class="kpi-val" id="live_total" style="color:var(--brown)">—</div>
+        <div class="kpi-lbl" id="t_k_charges">Total charges</div>
+        <div class="kpi-unit">DT</div>
+      </div>
+      <div class="kpi-box">
+        <div class="kpi-val" id="live_rdt" style="color:var(--gold)">—</div>
+        <div class="kpi-lbl" id="t_k_rdt">Rendement</div>
+        <div class="kpi-unit">kg/ha</div>
+      </div>
     </div>
     <div id="live_alert" class="alert"></div>
   </div>
 
   <button id="btnSave" class="btn btn-primary btn-full" onclick="sauvegarder()">
-    📤 Envoyer / إرسال
+    📤 <span id="t_btn">Envoyer mes données</span>
   </button>
 </div>
 
 <div class="toast" id="toast"></div>
 
 <script>
-function calcLive(){
-  const v=id=>parseFloat(document.getElementById(id).value)||0;
-  const prod=v('f_production'),pertes=v('f_pertes'),pv=v('f_pv'),surface=v('f_surface');
-  const tc=v('f_mo')+v('f_intrants')+v('f_eau')+v('f_recolte')+v('f_transport')+v('f_cert')+v('f_amort')+v('f_autres');
-  const div=document.getElementById('liveResult');
-  if(tc>0||prod>0){
-    div.style.display='block';
-    const net=prod-pertes,cout=net>0?tc/net:0,marge=pv-cout,rdt=surface>0?prod/surface:0;
-    document.getElementById('live_cout').textContent=cout.toFixed(3);
-    document.getElementById('live_marge').textContent=(marge>=0?'+':'')+marge.toFixed(3);
-    document.getElementById('live_marge').style.color=marge>=0?'var(--bio)':'#dc3545';
-    document.getElementById('live_total').textContent=tc.toFixed(0);
-    document.getElementById('live_rdt').textContent=rdt>0?Math.round(rdt):'—';
-    const a=document.getElementById('live_alert');
-    if(!cout){a.className='alert';a.textContent='';}
-    else if(marge>0){a.className='alert alert-success';a.textContent=`✅ Rentable / مربح : +${marge.toFixed(3)} DT/kg (${((marge/cout)*100).toFixed(0)}%)`;}
-    else{a.className='alert alert-info';a.textContent=`⚠️ Déficitaire / خسارة : ${Math.abs(marge).toFixed(3)} DT/kg`;}
+// ── LANGUE ────────────────────────────────────
+let lang = 'fr';
+
+const T = {
+  fr: {
+    titre:'🌴 Saisie de production', sous:'Dattes — Oasis du Sud Tunisien',
+    info:'Vos données seront enregistrées automatiquement',
+    identification:'📅 Identification', annee:'Année', mode:'Mode culture',
+    nom:'Nom / Exploitation', type_oasis:"Type d'oasis",
+    gouvernorat:'Gouvernorat', delegation:'Délégation',
+    production:'🌳 Production', surface:'Surface (ha)', surface_u:'Hectares de palmeraie',
+    palmiers:'Nb palmiers', palmiers_u:'Palmiers productifs',
+    prod:'Production (kg)', prod_u:'kg récoltés',
+    pertes:'Pertes (kg)', pertes_u:'kg non vendus',
+    charges:'💸 Charges (DT)', mo:"Main d'œuvre", intrants:'Intrants',
+    intrants_u:'Compost, engrais…', eau:'Eau & irrigation', recolte:'Récolte & tri',
+    transport:'Transport', cert:'Certification bio', amort:'Amortissement', autres:'Autres charges',
+    prix:'💰 Prix de vente', pv:'Prix unitaire (millimes/kg)', pv_u:'1500 millimes = 1.500 DT',
+    pp:'Prix total parcelle (DT)', pp_u:'= Prix unitaire × Prod. nette',
+    canal:'Canal de vente', notes:'Notes',
+    calcul:'⚡ Calcul en direct', k_cout:'Coût revient', k_marge:'Marge brute',
+    k_charges:'Total charges', k_rdt:'Rendement',
+    btn:'Envoyer mes données', sending:'⏳ Envoi en cours…',
+    success:'✅ Données envoyées avec succès !', warn:'⚠ Veuillez saisir une année',
+    rentable:'✅ Rentable', deficit:'⚠️ Déficitaire de',
+    delegation_placeholder:'— Choisir le gouvernorat —',
+    gouv_placeholder:'— Choisir —'
+  },
+  ar: {
+    titre:'🌴 إدخال بيانات الإنتاج', sous:'تمور — واحات الجنوب التونسي',
+    info:'سيتم تسجيل بياناتك تلقائياً',
+    identification:'📅 التعريف', annee:'السنة', mode:'نمط الزراعة',
+    nom:'الاسم / المستغلة', type_oasis:'نوع الواحة',
+    gouvernorat:'الولاية', delegation:'المعتمدية',
+    production:'🌳 الإنتاج', surface:'المساحة (هكتار)', surface_u:'هكتار من بستان النخيل',
+    palmiers:'عدد النخيل', palmiers_u:'النخيل المنتج',
+    prod:'الإنتاج (كغ)', prod_u:'كغ محصودة',
+    pertes:'الخسائر (كغ)', pertes_u:'كغ غير مباعة',
+    charges:'💸 التكاليف (دينار)', mo:'اليد العاملة', intrants:'المدخلات',
+    intrants_u:'سماد، أسمدة…', eau:'الماء والري', recolte:'الحصاد والفرز',
+    transport:'النقل', cert:'شهادة العضوية', amort:'الإهلاك', autres:'تكاليف أخرى',
+    prix:'💰 سعر البيع', pv:'السعر الوحدوي (مليم/كغ)', pv_u:'1500 مليم = 1.500 دينار',
+    pp:'السعر الإجمالي للقطعة (دينار)', pp_u:'= السعر الوحدوي × الإنتاج الصافي',
+    canal:'قناة البيع', notes:'ملاحظات',
+    calcul:'⚡ الحساب الفوري', k_cout:'تكلفة الإنتاج', k_marge:'الهامش الإجمالي',
+    k_charges:'إجمالي التكاليف', k_rdt:'المردودية',
+    btn:'إرسال البيانات', sending:'⏳ جارٍ الإرسال…',
+    success:'✅ تم إرسال البيانات بنجاح!', warn:'⚠ أدخل السنة',
+    rentable:'✅ مربح', deficit:'⚠️ خسارة بمقدار',
+    delegation_placeholder:'— اختر الولاية أولاً —',
+    gouv_placeholder:'— اختر —'
+  }
+};
+
+function setLang(l) {
+  lang = l;
+  document.getElementById('htmlRoot').lang = l;
+  document.body.className = l;
+  document.querySelectorAll('.lang-btn').forEach(b => b.classList.remove('active'));
+  document.querySelectorAll('.lang-btn')[l === 'fr' ? 0 : 1].classList.add('active');
+  const t = T[l];
+  const set = (id, val) => { const el = document.getElementById(id); if(el) el.textContent = val; };
+  set('t_titre', t.titre); set('t_sous', t.sous); set('t_info', t.info);
+  set('t_identification', t.identification); set('t_annee', t.annee); set('t_mode', t.mode);
+  set('t_nom', t.nom); set('t_type_oasis', t.type_oasis);
+  set('t_gouvernorat', t.gouvernorat); set('t_delegation', t.delegation);
+  set('t_production', t.production); set('t_surface', t.surface); set('t_surface_u', t.surface_u);
+  set('t_palmiers', t.palmiers); set('t_palmiers_u', t.palmiers_u);
+  set('t_prod', t.prod); set('t_prod_u', t.prod_u);
+  set('t_pertes', t.pertes); set('t_pertes_u', t.pertes_u);
+  set('t_charges', t.charges); set('t_mo', t.mo); set('t_intrants', t.intrants);
+  set('t_intrants_u', t.intrants_u); set('t_eau', t.eau); set('t_recolte', t.recolte);
+  set('t_transport', t.transport); set('t_cert', t.cert);
+  set('t_amort', t.amort); set('t_autres', t.autres);
+  set('t_prix', t.prix); set('t_pv', t.pv); set('t_pv_u', t.pv_u);
+  set('t_pp', t.pp); set('t_pp_u', t.pp_u);
+  set('t_canal', t.canal); set('t_notes', t.notes);
+  set('t_calcul', t.calcul); set('t_k_cout', t.k_cout); set('t_k_marge', t.k_marge);
+  set('t_k_charges', t.k_charges); set('t_k_rdt', t.k_rdt); set('t_btn', t.btn);
+  // gouvernorat placeholder
+  const gov = document.getElementById('f_gouvernorat');
+  if(gov) gov.options[0].text = t.gouv_placeholder;
+  majDelegations();
+}
+
+// ── DÉLÉGATIONS ───────────────────────────────
+const delegations = {
+  kebili:  ['Kébili Nord / قبلي الشمالية','Kébili Sud / قبلي الجنوبية','Douz Nord / دوز الشمالية','Douz Sud / دوز الجنوبية','Souk Lahad / سوق الأحد','Faouar / الفوار'],
+  tozeur:  ['Tozeur / توزر','Degache / دقاش','Tamerza / تمغزة','Hazoua / حزوة','Nefta / نفطة'],
+  gabes:   ['Gabès Médina / قابس المدينة','Gabès Ouest / قابس الغربية','Gabès Sud / قابس الجنوبية','El Hamma / الحامة','Mareth / مارث','Matmata / مطماطة','Nouvelle Matmata / مطماطة الجديدة','Menzel El Habib / منزل الحبيب'],
+  gafsa:   ['Gafsa Nord / قفصة الشمالية','Gafsa Sud / قفصة الجنوبية','Sidi Aïch / سيدي عيش','El Ksar / القصر','Redeyef / الرديف','Métlaoui / المتلوي','Mdhilla / المظيلة','El Guettar / القطار','Belkhir / بلخير','Sened / سند']
+};
+
+function majDelegations() {
+  const gov = document.getElementById('f_gouvernorat').value;
+  const sel = document.getElementById('f_delegation');
+  const t   = T[lang];
+  if (!gov) { sel.innerHTML = `<option value="">${t.delegation_placeholder}</option>`; return; }
+  sel.innerHTML = `<option value="">${lang==='ar'?'— اختر المعتمدية —':'— Choisir la délégation —'}</option>` +
+    delegations[gov].map(d => `<option value="${d}">${d}</option>`).join('');
+}
+
+// ── PRIX CORRÉLÉS ─────────────────────────────
+function calcPrixParcelle() {
+  const pv  = parseFloat(document.getElementById('f_pv').value) || 0;
+  const net = (parseFloat(document.getElementById('f_production').value)||0) -
+              (parseFloat(document.getElementById('f_pertes').value)||0);
+  if (pv > 0 && net > 0)
+    document.getElementById('f_prix_parcelle').value = ((pv/1000)*net).toFixed(3);
+}
+
+function calcPrixUnitaire() {
+  const pp  = parseFloat(document.getElementById('f_prix_parcelle').value) || 0;
+  const net = (parseFloat(document.getElementById('f_production').value)||0) -
+              (parseFloat(document.getElementById('f_pertes').value)||0);
+  if (pp > 0 && net > 0)
+    document.getElementById('f_pv').value = Math.round((pp/net)*1000);
+}
+
+// ── CALCUL EN DIRECT ─────────────────────────
+function calcLive() {
+  const v  = id => parseFloat(document.getElementById(id).value) || 0;
+  const prod = v('f_production'), pertes = v('f_pertes');
+  const pv   = v('f_pv') / 1000;
+  const surface = v('f_surface');
+  const tc = v('f_mo')+v('f_intrants')+v('f_eau')+v('f_recolte')+
+             v('f_transport')+v('f_cert')+v('f_amort')+v('f_autres');
+  const div = document.getElementById('liveResult');
+  if (tc > 0 || prod > 0) {
+    div.style.display = 'block';
+    const net  = prod - pertes;
+    const cout = net > 0 ? tc / net : 0;
+    const marge= pv - cout;
+    const rdt  = surface > 0 ? prod / surface : 0;
+    document.getElementById('live_cout').textContent  = cout.toFixed(3);
+    document.getElementById('live_marge').textContent = (marge>=0?'+':'')+marge.toFixed(3);
+    document.getElementById('live_marge').style.color = marge>=0?'var(--bio)':'#dc3545';
+    document.getElementById('live_total').textContent = tc.toFixed(0);
+    document.getElementById('live_rdt').textContent   = rdt>0?Math.round(rdt):'—';
+    const a = document.getElementById('live_alert');
+    const t = T[lang];
+    if (!cout) { a.className='alert'; a.textContent=''; }
+    else if (marge>0) {
+      a.className='alert alert-success';
+      a.textContent=`${t.rentable} : +${marge.toFixed(3)} DT/kg (${((marge/cout)*100).toFixed(0)}%)`;
+    } else {
+      a.className='alert alert-info';
+      a.textContent=`${t.deficit} ${Math.abs(marge).toFixed(3)} DT/kg`;
+    }
   } else { div.style.display='none'; }
 }
-function toast(msg){const el=document.getElementById('toast');el.textContent=msg;el.classList.add('show');setTimeout(()=>el.classList.remove('show'),3500);}
+
+function toast(msg) {
+  const el = document.getElementById('toast');
+  el.textContent = msg; el.classList.add('show');
+  setTimeout(()=>el.classList.remove('show'), 3000);
+}
 </script>
 </body>
 </html>
