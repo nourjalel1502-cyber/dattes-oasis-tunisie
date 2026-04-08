@@ -474,7 +474,11 @@ function calcPrixUnitaire() {
   if (pp > 0 && net > 0)
     document.getElementById('f_pv').value = Math.round((pp/net)*1000);
 }
-
+function toast(msg) {
+  const el = document.getElementById('toast');
+  el.textContent = msg; el.classList.add('show');
+  setTimeout(()=>el.classList.remove('show'), 3000);
+}
 </script>
 </body>
 </html>
