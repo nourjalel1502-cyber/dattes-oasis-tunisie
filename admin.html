@@ -2,9 +2,6 @@
 <html lang="fr">
 <head>
 <meta charset="UTF-8">
-<link rel="manifest" href="/dattes-oasis-tunisie/manifest.json">
-<meta name="theme-color" content="#2c1810">
-
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Admin — Dattes Oasis</title>
 <link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;700;800&family=DM+Mono:wght@300;400;500&display=swap" rel="stylesheet">
@@ -26,7 +23,8 @@ const firebaseConfig = {
 
 const app = initializeApp(firebaseConfig);
 const db  = getFirestore(app);
-const ADMIN_PASSWORD = "jalel123";
+
+const ADMIN_PASSWORD = "dattes@admin2024";
 
 window.verifierMDP = () => {
   const mdp = document.getElementById('mdpInput').value;
@@ -50,7 +48,6 @@ window.chargerDonnees = async () => {
     allData = [];
     snap.forEach(d => allData.push({ id: d.id, ...d.data() }));
     afficherStats();
-    afficherGraphiques();
     afficherTableau(allData);
   } catch(e) {
     alert('Erreur : ' + e.message);
@@ -59,7 +56,6 @@ window.chargerDonnees = async () => {
   }
 };
 
-// ── STATISTIQUES ─────────────────────────────
 function afficherStats() {
   const n = allData.length;
   document.getElementById('statTotal').textContent = n;
@@ -73,14 +69,14 @@ function afficherStats() {
   document.getElementById('statMarge').style.color = avgMarge>=0?'var(--bio)':'#dc3545';
   document.getElementById('statRentable').textContent = rentable+' / '+n;
 
-  // Par mode
+  // ── PAR MODE DE CULTURE ──────────────────────
   const modes = ['bio','conv','trans'];
   const modeLabels = { bio:'🌱 Bio', conv:'🌾 Conventionnel', trans:'🔄 Transition' };
-  document.getElementById('statParMode').innerHTML = modes.map(m => {
+  const modeHTML = modes.map(m => {
     const arr = allData.filter(r=>r.mode===m);
     if (!arr.length) return '';
     const aC = (arr.reduce((s,r)=>s+(r.coutRevient_DT_kg||0),0)/arr.length).toFixed(3);
-    const aM = arr.reduce((s,r)=>s+(r.margeBrute_DT_kg||0),0)/arr.length;
+    const aM = (arr.reduce((s,r)=>s+(r.margeBrute_DT_kg||0),0)/arr.length);
     const aR = Math.round(arr.reduce((s,r)=>s+(r.rendement_kg_ha||0),0)/arr.length);
     return `<div class="stat-row">
       <span class="stat-row-label">${modeLabels[m]} <small>(${arr.length})</small></span>
@@ -88,14 +84,15 @@ function afficherStats() {
       <span style="color:${aM>=0?'var(--bio)':'#dc3545'};font-weight:600">${aM>=0?'+':''}${aM.toFixed(3)}</span>
       <span style="color:var(--gold);font-weight:600">${aR}</span>
     </div>`;
-  }).join('') || '<p class="no-data">Aucune donnée</p>';
+  }).join('');
+  document.getElementById('statParMode').innerHTML = modeHTML || '<p class="no-data">Aucune donnée</p>';
 
-  // Par région
+  // ── PAR RÉGION ───────────────────────────────
   const regions = [...new Set(allData.map(r=>r.region||'Non précisée'))].sort();
-  document.getElementById('statParRegion').innerHTML = regions.map(reg => {
+  const regionHTML = regions.map(reg => {
     const arr = allData.filter(r=>(r.region||'Non précisée')===reg);
     const aC  = (arr.reduce((s,r)=>s+(r.coutRevient_DT_kg||0),0)/arr.length).toFixed(3);
-    const aM  = arr.reduce((s,r)=>s+(r.margeBrute_DT_kg||0),0)/arr.length;
+    const aM  = (arr.reduce((s,r)=>s+(r.margeBrute_DT_kg||0),0)/arr.length);
     const aR  = Math.round(arr.reduce((s,r)=>s+(r.rendement_kg_ha||0),0)/arr.length);
     return `<div class="stat-row">
       <span class="stat-row-label">📍 ${reg} <small>(${arr.length})</small></span>
@@ -103,89 +100,10 @@ function afficherStats() {
       <span style="color:${aM>=0?'var(--bio)':'#dc3545'};font-weight:600">${aM>=0?'+':''}${aM.toFixed(3)}</span>
       <span style="color:var(--gold);font-weight:600">${aR}</span>
     </div>`;
-  }).join('') || '<p class="no-data">Aucune donnée</p>';
-}
-
-// ── GRAPHIQUES ────────────────────────────────
-function afficherGraphiques() {
-  const n = allData.length;
-  if (!n) return;
-
-  // Mode de culture
-  const modeCount = { bio:0, conv:0, trans:0 };
-  allData.forEach(r => { if(modeCount[r.mode]!==undefined) modeCount[r.mode]++; });
-  const modeLabels = { bio:'🌱 Bio', conv:'🌾 Conv.', trans:'🔄 Trans.' };
-  const modeColors = { bio:'var(--bio)', conv:'var(--conv)', trans:'var(--gold)' };
-  const minSig = 30;
-
-  document.getElementById('chartMode').innerHTML = Object.entries(modeCount).map(([m, count]) => {
-    const pct = (count/n*100).toFixed(0);
-    const ok  = count >= minSig;
-    return `<div class="bar-row">
-      <div class="bar-label">
-        <span>${modeLabels[m]}</span>
-        <span>${count} agriculteurs (${pct}%) ${ok?'✅':'⚠️ < 30'}</span>
-      </div>
-      <div class="bar-track"><div class="bar-fill" style="width:${pct}%;background:${modeColors[m]}"></div></div>
-      <div class="bar-sig" style="color:${ok?'var(--bio)':'var(--gold)'}">
-        ${ok ? 'Significatif' : `Besoin de ${minSig-count} de plus`}
-      </div>
-    </div>`;
   }).join('');
-
-  // Région
-  const regions = {};
-  allData.forEach(r => { const g=r.region||'Non précisée'; regions[g]=(regions[g]||0)+1; });
-  const maxReg = Math.max(...Object.values(regions));
-  const minReg = 15;
-
-  document.getElementById('chartRegion').innerHTML = Object.entries(regions)
-    .sort((a,b)=>b[1]-a[1])
-    .map(([reg, count]) => {
-      const pct = (count/maxReg*100).toFixed(0);
-      const ok  = count >= minReg;
-      return `<div class="bar-row">
-        <div class="bar-label">
-          <span>📍 ${reg}</span>
-          <span>${count} (${(count/n*100).toFixed(0)}%) ${ok?'✅':'⚠️ < 15'}</span>
-        </div>
-        <div class="bar-track"><div class="bar-fill" style="width:${pct}%;background:var(--terra)"></div></div>
-        <div class="bar-sig" style="color:${ok?'var(--bio)':'var(--gold)'}">
-          ${ok ? 'Significatif' : `Besoin de ${minReg-count} de plus`}
-        </div>
-      </div>`;
-    }).join('');
-
-  // Surface
-  const tranches = {
-    'Petite < 1 ha':  allData.filter(r=>(r.surface||0)>0 && (r.surface||0)<1).length,
-    'Moyenne 1–5 ha': allData.filter(r=>(r.surface||0)>=1 && (r.surface||0)<=5).length,
-    'Grande > 5 ha':  allData.filter(r=>(r.surface||0)>5).length,
-    'Non renseignée': allData.filter(r=>!r.surface||r.surface===0).length,
-  };
-  const maxS = Math.max(...Object.values(tranches), 1);
-  const surfColors = ['var(--bio)','var(--gold)','var(--terra)','var(--muted)'];
-  const nonRens = allData.filter(r=>!r.surface||r.surface===0).length;
-
-  document.getElementById('chartSurface').innerHTML =
-    Object.entries(tranches).map(([lbl, count], i) => {
-      const pct = (count/maxS*100).toFixed(0);
-      return `<div class="bar-row">
-        <div class="bar-label">
-          <span>${lbl}</span>
-          <span>${count} agriculteurs (${(count/n*100).toFixed(0)}%)</span>
-        </div>
-        <div class="bar-track"><div class="bar-fill" style="width:${pct}%;background:${surfColors[i]}"></div></div>
-      </div>`;
-    }).join('') +
-    `<div class="sig-alert ${nonRens>n*0.2?'sig-warn':'sig-ok'}">
-      ${nonRens>n*0.2
-        ? '⚠️ Plus de 20% des agriculteurs n\'ont pas renseigné la surface — rendement non calculable'
-        : '✅ Surface bien renseignée pour la majorité des agriculteurs'}
-    </div>`;
+  document.getElementById('statParRegion').innerHTML = regionHTML || '<p class="no-data">Aucune donnée</p>';
 }
 
-// ── TABLEAU ───────────────────────────────────
 function afficherTableau(data) {
   if (!data.length) {
     document.getElementById('tableBody').innerHTML =
@@ -221,7 +139,7 @@ window.filtrer = () => {
   afficherTableau(allData.filter(r =>
     (!mode  || r.mode===mode) &&
     (!annee || String(r.annee)===annee) &&
-    (!search || (r.nom||'').toLowerCase().includes(search)||(r.region||'').toLowerCase().includes(search))
+    (!search || (r.nom||'').toLowerCase().includes(search) || (r.region||'').toLowerCase().includes(search))
   ));
 };
 
@@ -236,7 +154,7 @@ window.exportExcel = () => {
     'Coût revient (DT/kg)','Marge brute (DT/kg)','Taux marge (%)','Rendement (kg/ha)','Statut','Notes'
   ];
   const lignes = allData.map(r => ({
-    'Date saisie':           r.createdAt?.toDate?r.createdAt.toDate().toLocaleDateString('fr-FR'):'',
+    'Date saisie':           r.createdAt?.toDate ? r.createdAt.toDate().toLocaleDateString('fr-FR') : '',
     'Année':                 r.annee||'',
     'Nom / Exploitation':    r.nom||'',
     'Région':                r.region||'',
@@ -264,36 +182,38 @@ window.exportExcel = () => {
     'Statut':                r.statut||'',
     'Notes':                 r.notes||''
   }));
-  const wb=XLSX.utils.book_new();
-  const ws=XLSX.utils.json_to_sheet(lignes,{header:colonnes});
-  ws['!cols']=colonnes.map(c=>({wch:Math.max(c.length+2,14)}));
-  XLSX.utils.book_append_sheet(wb,ws,'Données saisons');
 
-  const bio=allData.filter(r=>r.mode==='bio');
-  const conv=allData.filter(r=>r.mode==='conv');
-  const avg=(arr,key)=>arr.length?(arr.reduce((s,r)=>s+(r[key]||0),0)/arr.length).toFixed(3):'—';
-  const ws2=XLSX.utils.json_to_sheet([
-    {'Indicateur':'Nombre total','Valeur':allData.length},
-    {'Indicateur':'Dont Bio','Valeur':bio.length},
-    {'Indicateur':'Dont Conv.','Valeur':conv.length},
-    {'Indicateur':'BIO — Coût revient moy (DT/kg)','Valeur':avg(bio,'coutRevient_DT_kg')},
-    {'Indicateur':'BIO — Marge brute moy (DT/kg)','Valeur':avg(bio,'margeBrute_DT_kg')},
-    {'Indicateur':'BIO — Rendement moy (kg/ha)','Valeur':avg(bio,'rendement_kg_ha')},
-    {'Indicateur':'CONV — Coût revient moy (DT/kg)','Valeur':avg(conv,'coutRevient_DT_kg')},
-    {'Indicateur':'CONV — Marge brute moy (DT/kg)','Valeur':avg(conv,'margeBrute_DT_kg')},
-    {'Indicateur':'CONV — Rendement moy (kg/ha)','Valeur':avg(conv,'rendement_kg_ha')},
-    {'Indicateur':'Rentables','Valeur':allData.filter(r=>r.statut==='rentable').length},
-    {'Indicateur':'Déficitaires','Valeur':allData.filter(r=>r.statut==='déficitaire').length},
+  const wb  = XLSX.utils.book_new();
+  const ws  = XLSX.utils.json_to_sheet(lignes, { header: colonnes });
+  ws['!cols'] = colonnes.map(c => ({ wch: Math.max(c.length+2, 14) }));
+  XLSX.utils.book_append_sheet(wb, ws, 'Données saisons');
+
+  const bio  = allData.filter(r=>r.mode==='bio');
+  const conv = allData.filter(r=>r.mode==='conv');
+  const avg  = (arr,key) => arr.length?(arr.reduce((s,r)=>s+(r[key]||0),0)/arr.length).toFixed(3):'—';
+  const ws2  = XLSX.utils.json_to_sheet([
+    {'Indicateur':'Nombre total d\'entrées',           'Valeur':allData.length},
+    {'Indicateur':'Dont Bio',                           'Valeur':bio.length},
+    {'Indicateur':'Dont Conventionnel',                 'Valeur':conv.length},
+    {'Indicateur':'— BIO — Coût revient moy (DT/kg)',  'Valeur':avg(bio,'coutRevient_DT_kg')},
+    {'Indicateur':'— BIO — Marge brute moy (DT/kg)',   'Valeur':avg(bio,'margeBrute_DT_kg')},
+    {'Indicateur':'— BIO — Rendement moy (kg/ha)',     'Valeur':avg(bio,'rendement_kg_ha')},
+    {'Indicateur':'— CONV — Coût revient moy (DT/kg)', 'Valeur':avg(conv,'coutRevient_DT_kg')},
+    {'Indicateur':'— CONV — Marge brute moy (DT/kg)',  'Valeur':avg(conv,'margeBrute_DT_kg')},
+    {'Indicateur':'— CONV — Rendement moy (kg/ha)',    'Valeur':avg(conv,'rendement_kg_ha')},
+    {'Indicateur':'Exploitations rentables',            'Valeur':allData.filter(r=>r.statut==='rentable').length},
+    {'Indicateur':'Exploitations déficitaires',         'Valeur':allData.filter(r=>r.statut==='déficitaire').length},
   ]);
-  ws2['!cols']=[{wch:42},{wch:20}];
-  XLSX.utils.book_append_sheet(wb,ws2,'Résumé');
-  XLSX.writeFile(wb,`dattes_oasis_${new Date().toISOString().slice(0,10)}.xlsx`);
+  ws2['!cols'] = [{wch:42},{wch:20}];
+  XLSX.utils.book_append_sheet(wb, ws2, 'Résumé');
+
+  XLSX.writeFile(wb, `dattes_oasis_${new Date().toISOString().slice(0,10)}.xlsx`);
   toast('✅ Fichier Excel téléchargé !');
 };
 
 window.supprimerDoc = async (id) => {
   if (!confirm('Supprimer cet enregistrement ?')) return;
-  await deleteDoc(doc(db,'saisons',id));
+  await deleteDoc(doc(db, 'saisons', id));
   toast('🗑 Supprimé');
   chargerDonnees();
 };
@@ -325,27 +245,6 @@ body{font-family:'DM Mono',monospace;background:var(--bg);color:var(--brown);min
 .stat-box{background:var(--card);border:1px solid var(--border);border-radius:14px;padding:16px;text-align:center;box-shadow:0 2px 8px var(--shadow)}
 .stat-val{font-family:'Syne',sans-serif;font-size:1.6rem;font-weight:800;color:var(--terra);line-height:1}
 .stat-lbl{font-size:0.62rem;color:var(--muted);letter-spacing:1px;text-transform:uppercase;margin-top:4px}
-.double-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:20px}
-@media(max-width:700px){.double-grid{grid-template-columns:1fr}}
-.stat-card{background:var(--card);border:1px solid var(--border);border-radius:14px;padding:16px;box-shadow:0 2px 8px var(--shadow)}
-.stat-card-title{font-family:'Syne',sans-serif;font-size:0.78rem;font-weight:700;letter-spacing:1px;text-transform:uppercase;color:var(--terra);margin-bottom:12px}
-.stat-row-header{display:flex;justify-content:space-between;font-size:0.62rem;letter-spacing:1px;text-transform:uppercase;color:var(--muted);padding-bottom:6px;border-bottom:1px solid var(--border);margin-bottom:6px}
-.stat-row-header span:first-child{flex:1;text-align:left}
-.stat-row-header span{min-width:70px;text-align:right}
-.stat-row{display:flex;justify-content:space-between;align-items:center;padding:8px 0;border-bottom:1px solid var(--border);font-size:0.78rem}
-.stat-row:last-child{border-bottom:none}
-.stat-row-label{flex:1;color:var(--brown)}
-.stat-row-label small{color:var(--muted);font-size:0.65rem}
-.stat-row span{min-width:70px;text-align:right}
-.no-data{font-size:0.75rem;color:var(--muted);text-align:center;padding:12px 0}
-.bar-row{margin-bottom:10px}
-.bar-label{display:flex;justify-content:space-between;font-size:0.72rem;color:var(--muted);margin-bottom:4px}
-.bar-track{height:8px;background:var(--sand);border-radius:4px;overflow:hidden;margin-bottom:3px}
-.bar-fill{height:100%;border-radius:4px;transition:width .6s ease}
-.bar-sig{font-size:0.68rem;text-align:right}
-.sig-alert{margin-top:12px;padding:10px 12px;border-radius:8px;font-size:0.75rem;line-height:1.5}
-.sig-ok{background:rgba(90,158,58,0.12);color:var(--bio)}
-.sig-warn{background:rgba(200,134,10,0.1);color:var(--gold)}
 .filtres{background:var(--card);border:1px solid var(--border);border-radius:14px;padding:14px 16px;margin-bottom:16px;display:flex;gap:10px;flex-wrap:wrap;align-items:flex-end}
 .filtre-field{flex:1;min-width:120px}
 .filtre-field label{display:block;font-size:0.65rem;letter-spacing:1px;text-transform:uppercase;color:var(--muted);margin-bottom:4px}
@@ -371,7 +270,29 @@ small{font-size:0.65rem;color:var(--muted)}
 .btn-danger{background:#dc3545;color:#fff}
 .btn-xs{padding:5px 9px;font-size:0.68rem;border-radius:6px}
 .btn-full{width:100%;justify-content:center}
-.loading{text-align:center;padding:12px;font-size:0.8rem;color:var(--muted);display:none}
+.double-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:20px}
+@media(max-width:600px){.double-grid{grid-template-columns:1fr}}
+.stat-card{background:var(--card);border:1px solid var(--border);border-radius:14px;padding:16px;box-shadow:0 2px 8px var(--shadow)}
+.stat-card-title{font-family:'Syne',sans-serif;font-size:0.78rem;font-weight:700;letter-spacing:1px;text-transform:uppercase;color:var(--terra);margin-bottom:12px}
+.stat-row-header{display:flex;justify-content:space-between;font-size:0.62rem;letter-spacing:1px;text-transform:uppercase;color:var(--muted);padding-bottom:6px;border-bottom:1px solid var(--border);margin-bottom:6px}
+.stat-row-header span:first-child{flex:1}
+.stat-row-header span{min-width:80px;text-align:right}
+.stat-row-header span:first-child{text-align:left}
+.stat-row{display:flex;justify-content:space-between;align-items:center;padding:8px 0;border-bottom:1px solid var(--border);font-size:0.78rem}
+.stat-row:last-child{border-bottom:none}
+.stat-row-label{flex:1;color:var(--brown)}
+.stat-row-label small{color:var(--muted);font-size:0.65rem}
+.stat-row span{min-width:80px;text-align:right}
+.bar-row{margin-bottom:10px}
+.bar-label{display:flex;justify-content:space-between;font-size:0.72rem;color:var(--muted);margin-bottom:4px}
+.bar-track{height:8px;background:var(--sand);border-radius:4px;overflow:hidden;margin-bottom:3px}
+.bar-fill{height:100%;border-radius:4px;transition:width .6s ease}
+.bar-sig{font-size:0.68rem;text-align:right}
+.sig-alert{margin-top:12px;padding:10px 12px;border-radius:8px;font-size:0.75rem;line-height:1.5}
+.sig-ok{background:rgba(90,158,58,0.12);color:var(--bio)}
+.sig-warn{background:rgba(200,134,10,0.1);color:var(--gold)}
+
+
 .toast{position:fixed;bottom:20px;left:50%;transform:translateX(-50%) translateY(20px);background:var(--brown);color:#fff;padding:10px 20px;border-radius:20px;font-size:0.78rem;opacity:0;transition:all .3s;pointer-events:none;z-index:999}
 .toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
 </style>
@@ -391,14 +312,15 @@ small{font-size:0.65rem;color:var(--muted)}
       </div>
       <div id="mdpError" class="error-msg"></div>
       <br>
-      <button class="btn btn-primary btn-full" onclick="verifierMDP()">Accéder au tableau de bord →</button>
+      <button class="btn btn-primary btn-full" onclick="verifierMDP()">
+        Accéder au tableau de bord →
+      </button>
     </div>
   </div>
 </div>
 
 <div id="adminScreen" style="display:none">
   <div class="admin-wrap">
-
     <div class="admin-header">
       <div>
         <h1>🌴 Tableau de bord Admin</h1>
@@ -410,7 +332,6 @@ small{font-size:0.65rem;color:var(--muted)}
       </div>
     </div>
 
-    <!-- KPI -->
     <div class="stats-grid">
       <div class="stat-box"><div class="stat-val" id="statTotal">—</div><div class="stat-lbl">Entrées totales</div></div>
       <div class="stat-box"><div class="stat-val" id="statCout" style="color:var(--terra)">—</div><div class="stat-lbl">Coût revient moyen</div></div>
@@ -436,24 +357,38 @@ small{font-size:0.65rem;color:var(--muted)}
       </div>
     </div>
 
-    <!-- GRAPHIQUES -->
+    <!-- GRAPHIQUES LIGNE 1 : MODE + GOUVERNORAT -->
     <div class="double-grid">
       <div class="stat-card">
-        <div class="stat-card-title">📊 Distribution par mode de culture</div>
-        <div id="chartMode"><p class="no-data">Cliquez sur Actualiser</p></div>
+        <div class="stat-card-title">📊 Par mode de culture</div>
+        <div class="stat-row-header"><span>Mode</span><span>Coût/kg</span><span>Marge/kg</span><span>Rdt kg/ha</span></div>
+        <div id="statParMode"><p class="no-data">Cliquez sur Actualiser</p></div>
       </div>
       <div class="stat-card">
-        <div class="stat-card-title">📊 Distribution par région</div>
-        <div id="chartRegion"><p class="no-data">Cliquez sur Actualiser</p></div>
+        <div class="stat-card-title">📊 Par gouvernorat</div>
+        <div class="stat-row-header"><span>Gouvernorat</span><span>Coût/kg</span><span>Marge/kg</span><span>Rdt kg/ha</span></div>
+        <div id="statParRegion"><p class="no-data">Cliquez sur Actualiser</p></div>
       </div>
     </div>
 
-    <div class="stat-card" style="margin-bottom:20px">
-      <div class="stat-card-title">📐 Distribution par surface (ha)</div>
-      <div id="chartSurface"><p class="no-data">Cliquez sur Actualiser</p></div>
+    <!-- GRAPHIQUES LIGNE 2 : DISTRIBUTION -->
+    <div class="double-grid">
+      <div class="stat-card">
+        <div class="stat-card-title">📈 Distribution par gouvernorat</div>
+        <div id="chartGouv"><p class="no-data">Cliquez sur Actualiser</p></div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-card-title">📈 Distribution par délégation</div>
+        <div id="chartDeleg"><p class="no-data">Cliquez sur Actualiser</p></div>
+      </div>
     </div>
 
-    <!-- FILTRES -->
+    <!-- GRAPHIQUE TYPE D'OASIS -->
+    <div class="stat-card" style="margin-bottom:20px">
+      <div class="stat-card-title">🌿 Distribution par type d'oasis</div>
+      <div id="chartType"><p class="no-data">Cliquez sur Actualiser</p></div>
+    </div>
+
     <div class="filtres">
       <div class="filtre-field"><label>Recherche</label><input type="text" id="filtreSearch" placeholder="Nom, région…" oninput="filtrer()"></div>
       <div class="filtre-field"><label>Mode culture</label>
@@ -467,7 +402,6 @@ small{font-size:0.65rem;color:var(--muted)}
       <div class="filtre-field"><label>Année</label><input type="number" id="filtreAnnee" placeholder="2024" oninput="filtrer()"></div>
     </div>
 
-    <!-- TABLE -->
     <div class="table-card">
       <div class="loading" id="loadingMsg">⏳ Chargement des données…</div>
       <div class="table-wrap">
@@ -481,7 +415,6 @@ small{font-size:0.65rem;color:var(--muted)}
         </table>
       </div>
     </div>
-
   </div>
 </div>
 
