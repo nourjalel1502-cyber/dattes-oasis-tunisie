@@ -8,6 +8,7 @@
 <title>Admin — Dattes Oasis</title>
 <link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;700;800&family=DM+Mono:wght@300;400;500&display=swap" rel="stylesheet">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
 
 <script type="module">
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
@@ -25,199 +26,290 @@ const firebaseConfig = {
 
 const app = initializeApp(firebaseConfig);
 const db  = getFirestore(app);
+const ADMIN_PASSWORD = "dattes@admin2024";
 
-const ADMIN_PASSWORD = "jalel123";
+let allData = [];
+let charts  = {};
 
 window.verifierMDP = () => {
-  const mdp = document.getElementById('mdpInput').value;
-  if (mdp === ADMIN_PASSWORD) {
-    document.getElementById('loginScreen').style.display = 'none';
-    document.getElementById('adminScreen').style.display = 'block';
+  if (document.getElementById('mdpInput').value === ADMIN_PASSWORD) {
+    document.getElementById('loginScreen').style.display  = 'none';
+    document.getElementById('adminScreen').style.display  = 'block';
     chargerDonnees();
   } else {
     document.getElementById('mdpError').textContent = '❌ Mot de passe incorrect';
   }
 };
 
-let allData = [];
-
 window.chargerDonnees = async () => {
   document.getElementById('loadingMsg').style.display = 'block';
   document.getElementById('tableBody').innerHTML = '';
   try {
-    const q    = query(collection(db, 'saisons'), orderBy('createdAt', 'desc'));
+    const q = query(collection(db,'saisons'), orderBy('createdAt','desc'));
     const snap = await getDocs(q);
     allData = [];
-    snap.forEach(d => allData.push({ id: d.id, ...d.data() }));
+    snap.forEach(d => allData.push({id:d.id,...d.data()}));
     afficherStats();
+    afficherGraphiques();
     afficherTableau(allData);
-  } catch(e) {
-    alert('Erreur : ' + e.message);
-  } finally {
-    document.getElementById('loadingMsg').style.display = 'none';
-  }
+  } catch(e) { alert('Erreur : '+e.message); }
+  finally { document.getElementById('loadingMsg').style.display = 'none'; }
 };
 
+// ── STATS KPI ─────────────────────────────────
 function afficherStats() {
   const n = allData.length;
   document.getElementById('statTotal').textContent = n;
   if (!n) return;
-
-  const avgCout  = allData.reduce((s,r)=>s+(r.coutRevient_DT_kg||0),0)/n;
-  const avgMarge = allData.reduce((s,r)=>s+(r.margeBrute_DT_kg||0),0)/n;
+  const avg = (key) => allData.reduce((s,r)=>s+(r[key]||0),0)/n;
+  const avgCout  = avg('coutRevient_DT_kg');
+  const avgMarge = avg('margeBrute_DT_kg');
   const rentable = allData.filter(r=>r.statut==='rentable').length;
   document.getElementById('statCout').textContent  = avgCout.toFixed(3)+' DT';
   document.getElementById('statMarge').textContent = (avgMarge>=0?'+':'')+avgMarge.toFixed(3)+' DT';
   document.getElementById('statMarge').style.color = avgMarge>=0?'var(--bio)':'#dc3545';
   document.getElementById('statRentable').textContent = rentable+' / '+n;
 
-  // ── PAR MODE DE CULTURE ──────────────────────
+  // Par mode
   const modes = ['bio','conv','trans'];
-  const modeLabels = { bio:'🌱 Bio', conv:'🌾 Conventionnel', trans:'🔄 Transition' };
-  const modeHTML = modes.map(m => {
-    const arr = allData.filter(r=>r.mode===m);
-    if (!arr.length) return '';
-    const aC = (arr.reduce((s,r)=>s+(r.coutRevient_DT_kg||0),0)/arr.length).toFixed(3);
-    const aM = (arr.reduce((s,r)=>s+(r.margeBrute_DT_kg||0),0)/arr.length);
-    const aR = Math.round(arr.reduce((s,r)=>s+(r.rendement_kg_ha||0),0)/arr.length);
+  const modeL = {bio:'🌱 Bio',conv:'🌾 Conv.',trans:'🔄 Trans.'};
+  document.getElementById('statParMode').innerHTML = modes.map(m=>{
+    const arr=allData.filter(r=>r.mode===m); if(!arr.length) return '';
+    const aC=(arr.reduce((s,r)=>s+(r.coutRevient_DT_kg||0),0)/arr.length).toFixed(3);
+    const aM=(arr.reduce((s,r)=>s+(r.margeBrute_DT_kg||0),0)/arr.length);
+    const aR=Math.round(arr.reduce((s,r)=>s+(r.rendement_kg_ha||0),0)/arr.length);
     return `<div class="stat-row">
-      <span class="stat-row-label">${modeLabels[m]} <small>(${arr.length})</small></span>
+      <span class="stat-row-label">${modeL[m]} <small>(${arr.length})</small></span>
       <span style="color:var(--terra);font-weight:600">${aC}</span>
       <span style="color:${aM>=0?'var(--bio)':'#dc3545'};font-weight:600">${aM>=0?'+':''}${aM.toFixed(3)}</span>
       <span style="color:var(--gold);font-weight:600">${aR}</span>
     </div>`;
-  }).join('');
-  document.getElementById('statParMode').innerHTML = modeHTML || '<p class="no-data">Aucune donnée</p>';
+  }).join('') || '<p class="no-data">Aucune donnée</p>';
 
-  // ── PAR RÉGION ───────────────────────────────
-  const regions = [...new Set(allData.map(r=>r.region||'Non précisée'))].sort();
-  const regionHTML = regions.map(reg => {
-    const arr = allData.filter(r=>(r.region||'Non précisée')===reg);
-    const aC  = (arr.reduce((s,r)=>s+(r.coutRevient_DT_kg||0),0)/arr.length).toFixed(3);
-    const aM  = (arr.reduce((s,r)=>s+(r.margeBrute_DT_kg||0),0)/arr.length);
-    const aR  = Math.round(arr.reduce((s,r)=>s+(r.rendement_kg_ha||0),0)/arr.length);
+  // Par gouvernorat
+  const govs = [...new Set(allData.map(r=>r.gouvernorat||'Non précisé'))].sort();
+  const govL = {kebili:'Kébili',tozeur:'Tozeur',gabes:'Gabès',gafsa:'Gafsa'};
+  document.getElementById('statParRegion').innerHTML = govs.map(g=>{
+    const arr=allData.filter(r=>(r.gouvernorat||'Non précisé')===g);
+    const aC=(arr.reduce((s,r)=>s+(r.coutRevient_DT_kg||0),0)/arr.length).toFixed(3);
+    const aM=(arr.reduce((s,r)=>s+(r.margeBrute_DT_kg||0),0)/arr.length);
+    const aR=Math.round(arr.reduce((s,r)=>s+(r.rendement_kg_ha||0),0)/arr.length);
     return `<div class="stat-row">
-      <span class="stat-row-label">📍 ${reg} <small>(${arr.length})</small></span>
+      <span class="stat-row-label">📍 ${govL[g]||g} <small>(${arr.length})</small></span>
       <span style="color:var(--terra);font-weight:600">${aC}</span>
       <span style="color:${aM>=0?'var(--bio)':'#dc3545'};font-weight:600">${aM>=0?'+':''}${aM.toFixed(3)}</span>
       <span style="color:var(--gold);font-weight:600">${aR}</span>
     </div>`;
-  }).join('');
-  document.getElementById('statParRegion').innerHTML = regionHTML || '<p class="no-data">Aucune donnée</p>';
+  }).join('') || '<p class="no-data">Aucune donnée</p>';
 }
 
+// ── GRAPHIQUES ────────────────────────────────
+function destroyChart(id) {
+  if (charts[id]) { charts[id].destroy(); delete charts[id]; }
+}
+
+function afficherGraphiques() {
+  if (!allData.length) return;
+
+  const govL = {kebili:'Kébili',tozeur:'Tozeur',gabes:'Gabès',gafsa:'Gafsa'};
+  const COLORS = {
+    bio:'rgba(90,158,58,0.8)', conv:'rgba(192,120,32,0.8)', trans:'rgba(100,150,200,0.8)',
+    publique:'rgba(139,58,26,0.8)', privee:'rgba(200,134,10,0.8)',
+    kebili:'rgba(90,158,58,0.8)', tozeur:'rgba(192,120,32,0.8)',
+    gabes:'rgba(100,150,200,0.8)', gafsa:'rgba(200,80,80,0.8)'
+  };
+
+  // ── 1. PAR GOUVERNORAT : coût revient moyen ─
+  destroyChart('chartGouv');
+  const govs   = ['kebili','tozeur','gabes','gafsa'];
+  const govData = govs.map(g => {
+    const arr = allData.filter(r=>r.gouvernorat===g);
+    return arr.length ? (arr.reduce((s,r)=>s+(r.coutRevient_DT_kg||0),0)/arr.length) : 0;
+  });
+  const govMarge = govs.map(g => {
+    const arr = allData.filter(r=>r.gouvernorat===g);
+    return arr.length ? (arr.reduce((s,r)=>s+(r.margeBrute_DT_kg||0),0)/arr.length) : 0;
+  });
+  charts.chartGouv = new Chart(document.getElementById('chartGouv'), {
+    type:'bar',
+    data:{
+      labels: govs.map(g=>govL[g]),
+      datasets:[
+        { label:'Coût revient moy (DT/kg)', data:govData,
+          backgroundColor:govs.map(g=>COLORS[g]||'#aaa'), borderRadius:6 },
+        { label:'Marge brute moy (DT/kg)', data:govMarge,
+          backgroundColor:govs.map(g=>COLORS[g]||'#aaa').map(c=>c.replace('0.8','0.3')),
+          borderColor:govs.map(g=>COLORS[g]||'#aaa'), borderWidth:2, borderRadius:6 }
+      ]
+    },
+    options:{responsive:true,plugins:{legend:{position:'bottom'}},
+      scales:{y:{beginAtZero:true,title:{display:true,text:'DT/kg'}}}}
+  });
+
+  // ── 2. PAR MODE : coût + marge ──────────────
+  destroyChart('chartMode');
+  const modes   = ['bio','conv','trans'];
+  const modeL   = {bio:'🌱 Bio',conv:'🌾 Conv.',trans:'🔄 Trans.'};
+  const modeCout = modes.map(m=>{
+    const arr=allData.filter(r=>r.mode===m);
+    return arr.length?(arr.reduce((s,r)=>s+(r.coutRevient_DT_kg||0),0)/arr.length):0;
+  });
+  const modeMarge = modes.map(m=>{
+    const arr=allData.filter(r=>r.mode===m);
+    return arr.length?(arr.reduce((s,r)=>s+(r.margeBrute_DT_kg||0),0)/arr.length):0;
+  });
+  charts.chartMode = new Chart(document.getElementById('chartMode'), {
+    type:'bar',
+    data:{
+      labels: modes.map(m=>modeL[m]),
+      datasets:[
+        { label:'Coût revient moy (DT/kg)', data:modeCout,
+          backgroundColor:modes.map(m=>COLORS[m]), borderRadius:6 },
+        { label:'Marge brute moy (DT/kg)', data:modeMarge,
+          backgroundColor:modes.map(m=>COLORS[m]).map(c=>c.replace('0.8','0.3')),
+          borderColor:modes.map(m=>COLORS[m]), borderWidth:2, borderRadius:6 }
+      ]
+    },
+    options:{responsive:true,plugins:{legend:{position:'bottom'}},
+      scales:{y:{beginAtZero:true,title:{display:true,text:'DT/kg'}}}}
+  });
+
+  // ── 3. DISTRIBUTION PAR DÉLÉGATION ──────────
+  destroyChart('chartDeleg');
+  const delegCounts = {};
+  allData.forEach(r => {
+    const d = (r.delegation||'Non précisée').split('/')[0].trim();
+    delegCounts[d] = (delegCounts[d]||0) + 1;
+  });
+  const delegLabels = Object.keys(delegCounts).sort((a,b)=>delegCounts[b]-delegCounts[a]).slice(0,10);
+  const delegData   = delegLabels.map(d=>delegCounts[d]);
+  charts.chartDeleg = new Chart(document.getElementById('chartDeleg'), {
+    type:'bar',
+    data:{
+      labels: delegLabels,
+      datasets:[{
+        label:'Nombre d\'agriculteurs',
+        data: delegData,
+        backgroundColor:'rgba(139,58,26,0.7)',
+        borderColor:'rgba(139,58,26,1)',
+        borderWidth:1, borderRadius:6
+      }]
+    },
+    options:{
+      indexAxis:'y', responsive:true,
+      plugins:{legend:{display:false}},
+      scales:{x:{beginAtZero:true,title:{display:true,text:'Nombre'}}}
+    }
+  });
+
+  // ── 4. DISTRIBUTION PAR TYPE D'OASIS ────────
+  destroyChart('chartOasis');
+  const pub  = allData.filter(r=>r.type_oasis==='publique').length;
+  const priv = allData.filter(r=>r.type_oasis==='privee').length;
+  const autre= allData.filter(r=>!r.type_oasis||r.type_oasis==='').length;
+  charts.chartOasis = new Chart(document.getElementById('chartOasis'), {
+    type:'doughnut',
+    data:{
+      labels:['🏛 Publique','🏡 Privée', autre>0?'❓ Non précisé':null].filter(Boolean),
+      datasets:[{
+        data:[pub, priv, autre>0?autre:null].filter(v=>v),
+        backgroundColor:['rgba(139,58,26,0.8)','rgba(200,134,10,0.8)','rgba(180,180,180,0.5)'],
+        borderColor:['#8b3a1a','#c8860a','#aaa'],
+        borderWidth:2
+      }]
+    },
+    options:{
+      responsive:true,
+      plugins:{
+        legend:{position:'bottom'},
+        tooltip:{callbacks:{label:ctx=>{
+          const total=ctx.dataset.data.reduce((a,b)=>a+b,0);
+          return ` ${ctx.label} : ${ctx.raw} (${((ctx.raw/total)*100).toFixed(0)}%)`;
+        }}}
+      }
+    }
+  });
+}
+
+// ── TABLEAU ───────────────────────────────────
 function afficherTableau(data) {
+  const govL={kebili:'Kébili',tozeur:'Tozeur',gabes:'Gabès',gafsa:'Gafsa'};
   if (!data.length) {
-    document.getElementById('tableBody').innerHTML =
-      '<tr><td colspan="10" style="text-align:center;padding:20px;color:var(--muted)">Aucune donnée</td></tr>';
+    document.getElementById('tableBody').innerHTML='<tr><td colspan="11" style="text-align:center;padding:20px;color:var(--muted)">Aucune donnée</td></tr>';
     return;
   }
-  document.getElementById('tableBody').innerHTML = data.map(r => {
-    const date = r.createdAt?.toDate ? r.createdAt.toDate().toLocaleDateString('fr-FR') : '—';
-    const statutBadge = r.statut==='rentable'
-      ? '<span class="badge badge-green">✅ Rentable</span>'
-      : r.statut==='déficitaire'
-      ? '<span class="badge badge-red">⚠️ Déficitaire</span>'
-      : '<span class="badge badge-grey">—</span>';
+  document.getElementById('tableBody').innerHTML = data.map(r=>{
+    const date=r.createdAt?.toDate?r.createdAt.toDate().toLocaleDateString('fr-FR'):'—';
+    const statBadge=r.statut==='rentable'?'<span class="badge badge-green">✅</span>':r.statut==='déficitaire'?'<span class="badge badge-red">⚠️</span>':'<span class="badge badge-grey">—</span>';
+    const deleg=(r.delegation||'').split('/')[0].trim()||'—';
     return `<tr>
       <td>${date}</td>
       <td><strong>${r.annee||'—'}</strong></td>
-      <td>${r.nom||'—'}<br><small>${r.region||''}</small></td>
+      <td>${r.nom||'—'}</td>
+      <td>${govL[r.gouvernorat]||r.gouvernorat||'—'}<br><small>${deleg}</small></td>
       <td><span class="badge ${r.mode==='bio'?'badge-bio':'badge-conv'}">${(r.mode||'—').toUpperCase()}</span></td>
+      <td><span class="badge ${r.type_oasis==='publique'?'badge-pub':'badge-priv'}">${r.type_oasis==='publique'?'🏛':'🏡'} ${r.type_oasis||'—'}</span></td>
       <td>${r.production||0} kg</td>
       <td style="color:var(--terra);font-weight:600">${(r.coutRevient_DT_kg||0).toFixed(3)}</td>
       <td style="color:${(r.margeBrute_DT_kg||0)>=0?'var(--bio)':'#dc3545'};font-weight:600">${(r.margeBrute_DT_kg||0)>=0?'+':''}${(r.margeBrute_DT_kg||0).toFixed(3)}</td>
-      <td>${(r.rendement_kg_ha||0).toFixed(0)}</td>
-      <td>${statutBadge}</td>
+      <td>${statBadge}</td>
       <td><button class="btn btn-danger btn-xs" onclick="supprimerDoc('${r.id}')">🗑</button></td>
     </tr>`;
   }).join('');
 }
 
 window.filtrer = () => {
-  const mode   = document.getElementById('filtreMode').value;
-  const annee  = document.getElementById('filtreAnnee').value;
-  const search = document.getElementById('filtreSearch').value.toLowerCase();
-  afficherTableau(allData.filter(r =>
+  const mode  = document.getElementById('filtreMode').value;
+  const annee = document.getElementById('filtreAnnee').value;
+  const gouv  = document.getElementById('filtreGouv').value;
+  const search= document.getElementById('filtreSearch').value.toLowerCase();
+  afficherTableau(allData.filter(r=>
     (!mode  || r.mode===mode) &&
     (!annee || String(r.annee)===annee) &&
-    (!search || (r.nom||'').toLowerCase().includes(search) || (r.region||'').toLowerCase().includes(search))
+    (!gouv  || r.gouvernorat===gouv) &&
+    (!search|| (r.nom||'').toLowerCase().includes(search)||(r.delegation||'').toLowerCase().includes(search))
   ));
 };
 
 window.exportExcel = () => {
-  if (!allData.length) { alert('Aucune donnée à exporter'); return; }
-  const colonnes = [
-    'Date saisie','Année','Nom / Exploitation','Région','Mode culture','Canal vente',
-    'Surface (ha)','Nb palmiers','Production (kg)','Pertes (kg)','Production nette (kg)',
-    "Main d'œuvre (DT)",'Intrants (DT)','Eau (DT)','Récolte (DT)',
-    'Transport (DT)','Certification (DT)','Amortissement (DT)','Autres charges (DT)',
-    'Total charges (DT)','Prix vente (DT/kg)',
-    'Coût revient (DT/kg)','Marge brute (DT/kg)','Taux marge (%)','Rendement (kg/ha)','Statut','Notes'
-  ];
-  const lignes = allData.map(r => ({
-    'Date saisie':           r.createdAt?.toDate ? r.createdAt.toDate().toLocaleDateString('fr-FR') : '',
-    'Année':                 r.annee||'',
-    'Nom / Exploitation':    r.nom||'',
-    'Région':                r.region||'',
-    'Mode culture':          r.mode||'',
-    'Canal vente':           r.canal||'',
-    'Surface (ha)':          r.surface||0,
-    'Nb palmiers':           r.palmiers||0,
-    'Production (kg)':       r.production||0,
-    'Pertes (kg)':           r.pertes||0,
-    'Production nette (kg)': r.netProd||0,
-    "Main d'œuvre (DT)":     r.mo||0,
-    'Intrants (DT)':         r.intrants||0,
-    'Eau (DT)':              r.eau||0,
-    'Récolte (DT)':          r.recolte||0,
-    'Transport (DT)':        r.transport||0,
-    'Certification (DT)':    r.cert||0,
-    'Amortissement (DT)':    r.amort||0,
-    'Autres charges (DT)':   r.autres||0,
-    'Total charges (DT)':    r.totalCharges||0,
-    'Prix vente (DT/kg)':    r.pv||0,
-    'Coût revient (DT/kg)':  r.coutRevient_DT_kg||0,
-    'Marge brute (DT/kg)':   r.margeBrute_DT_kg||0,
-    'Taux marge (%)':        r.tauxMarge_pct||0,
-    'Rendement (kg/ha)':     r.rendement_kg_ha||0,
-    'Statut':                r.statut||'',
-    'Notes':                 r.notes||''
+  if (!allData.length) { alert('Aucune donnée'); return; }
+  const govL={kebili:'Kébili',tozeur:'Tozeur',gabes:'Gabès',gafsa:'Gafsa'};
+  const cols=['Date','Année','Nom','Gouvernorat','Délégation','Type oasis','Mode','Surface (ha)',
+    'Palmiers','Production (kg)','Pertes (kg)','Prod. nette (kg)',
+    "Main d'œuvre (DT)",'Intrants (DT)','Eau (DT)','Récolte (DT)','Transport (DT)',
+    'Certification (DT)','Amortissement (DT)','Autres (DT)','Total charges (DT)',
+    'Prix unit. (millimes/kg)','Prix vente (DT/kg)','Prix parcelle (DT)',
+    'Coût revient (DT/kg)','Marge brute (DT/kg)','Taux marge (%)','Rendement (kg/ha)','Statut','Notes'];
+  const rows=allData.map(r=>({
+    'Date':r.createdAt?.toDate?r.createdAt.toDate().toLocaleDateString('fr-FR'):'',
+    'Année':r.annee||'','Nom':r.nom||'',
+    'Gouvernorat':govL[r.gouvernorat]||r.gouvernorat||'',
+    'Délégation':(r.delegation||'').split('/')[0].trim(),
+    'Type oasis':r.type_oasis||'','Mode':r.mode||'',
+    'Surface (ha)':r.surface||0,'Palmiers':r.palmiers||0,
+    'Production (kg)':r.production||0,'Pertes (kg)':r.pertes||0,'Prod. nette (kg)':r.netProd||0,
+    "Main d'œuvre (DT)":r.mo||0,'Intrants (DT)':r.intrants||0,'Eau (DT)':r.eau||0,
+    'Récolte (DT)':r.recolte||0,'Transport (DT)':r.transport||0,
+    'Certification (DT)':r.cert||0,'Amortissement (DT)':r.amort||0,'Autres (DT)':r.autres||0,
+    'Total charges (DT)':r.totalCharges||0,
+    'Prix unit. (millimes/kg)':r.pv_millimes||0,'Prix vente (DT/kg)':r.pv||0,
+    'Prix parcelle (DT)':r.prixParcelle_DT||0,
+    'Coût revient (DT/kg)':r.coutRevient_DT_kg||0,'Marge brute (DT/kg)':r.margeBrute_DT_kg||0,
+    'Taux marge (%)':r.tauxMarge_pct||0,'Rendement (kg/ha)':r.rendement_kg_ha||0,
+    'Statut':r.statut||'','Notes':r.notes||''
   }));
-
-  const wb  = XLSX.utils.book_new();
-  const ws  = XLSX.utils.json_to_sheet(lignes, { header: colonnes });
-  ws['!cols'] = colonnes.map(c => ({ wch: Math.max(c.length+2, 14) }));
-  XLSX.utils.book_append_sheet(wb, ws, 'Données saisons');
-
-  const bio  = allData.filter(r=>r.mode==='bio');
-  const conv = allData.filter(r=>r.mode==='conv');
-  const avg  = (arr,key) => arr.length?(arr.reduce((s,r)=>s+(r[key]||0),0)/arr.length).toFixed(3):'—';
-  const ws2  = XLSX.utils.json_to_sheet([
-    {'Indicateur':'Nombre total d\'entrées',           'Valeur':allData.length},
-    {'Indicateur':'Dont Bio',                           'Valeur':bio.length},
-    {'Indicateur':'Dont Conventionnel',                 'Valeur':conv.length},
-    {'Indicateur':'— BIO — Coût revient moy (DT/kg)',  'Valeur':avg(bio,'coutRevient_DT_kg')},
-    {'Indicateur':'— BIO — Marge brute moy (DT/kg)',   'Valeur':avg(bio,'margeBrute_DT_kg')},
-    {'Indicateur':'— BIO — Rendement moy (kg/ha)',     'Valeur':avg(bio,'rendement_kg_ha')},
-    {'Indicateur':'— CONV — Coût revient moy (DT/kg)', 'Valeur':avg(conv,'coutRevient_DT_kg')},
-    {'Indicateur':'— CONV — Marge brute moy (DT/kg)',  'Valeur':avg(conv,'margeBrute_DT_kg')},
-    {'Indicateur':'— CONV — Rendement moy (kg/ha)',    'Valeur':avg(conv,'rendement_kg_ha')},
-    {'Indicateur':'Exploitations rentables',            'Valeur':allData.filter(r=>r.statut==='rentable').length},
-    {'Indicateur':'Exploitations déficitaires',         'Valeur':allData.filter(r=>r.statut==='déficitaire').length},
-  ]);
-  ws2['!cols'] = [{wch:42},{wch:20}];
-  XLSX.utils.book_append_sheet(wb, ws2, 'Résumé');
-
-  XLSX.writeFile(wb, `dattes_oasis_${new Date().toISOString().slice(0,10)}.xlsx`);
-  toast('✅ Fichier Excel téléchargé !');
+  const wb=XLSX.utils.book_new();
+  const ws=XLSX.utils.json_to_sheet(rows,{header:cols});
+  ws['!cols']=cols.map(c=>({wch:Math.max(c.length+2,12)}));
+  XLSX.utils.book_append_sheet(wb,ws,'Données');
+  XLSX.writeFile(wb,`dattes_oasis_${new Date().toISOString().slice(0,10)}.xlsx`);
+  toast('✅ Excel téléchargé !');
 };
 
 window.supprimerDoc = async (id) => {
-  if (!confirm('Supprimer cet enregistrement ?')) return;
-  await deleteDoc(doc(db, 'saisons', id));
-  toast('🗑 Supprimé');
-  chargerDonnees();
+  if (!confirm('Supprimer ?')) return;
+  await deleteDoc(doc(db,'saisons',id));
+  toast('🗑 Supprimé'); chargerDonnees();
 };
 
 function toast(msg){const el=document.getElementById('toast');el.textContent=msg;el.classList.add('show');setTimeout(()=>el.classList.remove('show'),3000);}
@@ -227,6 +319,8 @@ function toast(msg){const el=document.getElementById('toast');el.textContent=msg
 *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
 :root{--bg:#f7f3ee;--card:#fff;--brown:#2c1810;--terra:#8b3a1a;--gold:#c8860a;--amber:#e8a020;--bio:#5a9e3a;--conv:#c07820;--muted:#9a8070;--border:#e8ddd0;--sand:#f0e8d8;--shadow:rgba(44,24,16,0.10)}
 body{font-family:'DM Mono',monospace;background:var(--bg);color:var(--brown);min-height:100vh}
+
+/* LOGIN */
 .login-wrap{max-width:360px;margin:80px auto;padding:0 16px;text-align:center}
 .login-icon{font-size:3rem;margin-bottom:16px}
 .login-title{font-family:'Syne',sans-serif;font-size:1.5rem;font-weight:800;color:var(--terra);margin-bottom:6px}
@@ -234,37 +328,73 @@ body{font-family:'DM Mono',monospace;background:var(--bg);color:var(--brown);min
 .login-card{background:var(--card);border:1px solid var(--border);border-radius:16px;padding:24px;box-shadow:0 4px 20px var(--shadow)}
 .field{margin-bottom:14px;text-align:left}
 .field label{display:block;font-size:0.68rem;letter-spacing:1px;text-transform:uppercase;color:var(--muted);margin-bottom:5px}
-.field input{width:100%;padding:11px 14px;background:var(--sand);border:1.5px solid var(--border);border-radius:10px;font-family:'DM Mono',monospace;font-size:1rem;color:var(--brown);outline:none;transition:border-color .2s}
+.field input{width:100%;padding:11px 14px;background:var(--sand);border:1.5px solid var(--border);border-radius:10px;font-family:'DM Mono',monospace;font-size:1rem;color:var(--brown);outline:none}
 .field input:focus{border-color:var(--amber)}
 .error-msg{color:#dc3545;font-size:0.78rem;margin-top:8px}
-.admin-wrap{max-width:1100px;margin:0 auto;padding:20px 16px 60px}
+
+/* ADMIN */
+.admin-wrap{max-width:1200px;margin:0 auto;padding:20px 16px 60px}
 .admin-header{background:var(--brown);border-radius:16px;padding:20px 24px;margin-bottom:20px;display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:12px}
 .admin-header h1{font-family:'Syne',sans-serif;font-size:1.3rem;font-weight:800;color:#fff}
 .admin-header p{font-size:0.72rem;color:rgba(255,255,255,0.5);margin-top:2px}
 .header-actions{display:flex;gap:8px;flex-wrap:wrap}
-.stats-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:20px}
+
+/* STATS */
+.stats-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:16px}
 @media(max-width:600px){.stats-grid{grid-template-columns:1fr 1fr}}
 .stat-box{background:var(--card);border:1px solid var(--border);border-radius:14px;padding:16px;text-align:center;box-shadow:0 2px 8px var(--shadow)}
 .stat-val{font-family:'Syne',sans-serif;font-size:1.6rem;font-weight:800;color:var(--terra);line-height:1}
 .stat-lbl{font-size:0.62rem;color:var(--muted);letter-spacing:1px;text-transform:uppercase;margin-top:4px}
+
+/* STAT TABLES */
+.double-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:16px}
+@media(max-width:700px){.double-grid{grid-template-columns:1fr}}
+.stat-card{background:var(--card);border:1px solid var(--border);border-radius:14px;padding:16px;box-shadow:0 2px 8px var(--shadow)}
+.stat-card-title{font-family:'Syne',sans-serif;font-size:0.78rem;font-weight:700;letter-spacing:1px;text-transform:uppercase;color:var(--terra);margin-bottom:10px}
+.stat-row-header{display:flex;justify-content:space-between;font-size:0.6rem;letter-spacing:1px;text-transform:uppercase;color:var(--muted);padding-bottom:6px;border-bottom:1px solid var(--border);margin-bottom:4px}
+.stat-row-header span:first-child{flex:1;text-align:left}
+.stat-row-header span{min-width:70px;text-align:right}
+.stat-row{display:flex;justify-content:space-between;align-items:center;padding:7px 0;border-bottom:1px solid var(--border);font-size:0.78rem}
+.stat-row:last-child{border:none}
+.stat-row-label{flex:1;color:var(--brown)}
+.stat-row-label small{color:var(--muted);font-size:0.65rem}
+.stat-row span{min-width:70px;text-align:right}
+.no-data{font-size:0.75rem;color:var(--muted);text-align:center;padding:12px 0}
+
+/* GRAPHIQUES */
+.charts-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:16px}
+@media(max-width:700px){.charts-grid{grid-template-columns:1fr}}
+.chart-card{background:var(--card);border:1px solid var(--border);border-radius:14px;padding:16px;box-shadow:0 2px 8px var(--shadow)}
+.chart-card-title{font-family:'Syne',sans-serif;font-size:0.78rem;font-weight:700;letter-spacing:1px;text-transform:uppercase;color:var(--terra);margin-bottom:14px}
+.chart-wrap{position:relative;height:220px}
+
+/* FILTRES */
 .filtres{background:var(--card);border:1px solid var(--border);border-radius:14px;padding:14px 16px;margin-bottom:16px;display:flex;gap:10px;flex-wrap:wrap;align-items:flex-end}
-.filtre-field{flex:1;min-width:120px}
+.filtre-field{flex:1;min-width:110px}
 .filtre-field label{display:block;font-size:0.65rem;letter-spacing:1px;text-transform:uppercase;color:var(--muted);margin-bottom:4px}
-.filtre-field input,.filtre-field select{width:100%;padding:8px 10px;background:var(--sand);border:1.5px solid var(--border);border-radius:8px;font-family:'DM Mono',monospace;font-size:0.82rem;color:var(--brown);outline:none}
+.filtre-field input,.filtre-field select{width:100%;padding:8px 10px;background:var(--sand);border:1.5px solid var(--border);border-radius:8px;font-family:'DM Mono',monospace;font-size:0.82rem;color:var(--brown);outline:none;appearance:none}
+
+/* TABLE */
 .table-card{background:var(--card);border:1px solid var(--border);border-radius:14px;overflow:hidden;box-shadow:0 2px 8px var(--shadow)}
 .table-wrap{overflow-x:auto}
-table{width:100%;border-collapse:collapse;font-size:0.76rem;min-width:900px}
-th{background:var(--sand);padding:10px 12px;text-align:left;font-family:'Syne',sans-serif;font-size:0.62rem;letter-spacing:1px;text-transform:uppercase;color:var(--muted);font-weight:700;white-space:nowrap}
-td{padding:10px 12px;border-bottom:1px solid var(--border);vertical-align:middle}
+table{width:100%;border-collapse:collapse;font-size:0.74rem;min-width:1000px}
+th{background:var(--sand);padding:9px 10px;text-align:left;font-family:'Syne',sans-serif;font-size:0.6rem;letter-spacing:1px;text-transform:uppercase;color:var(--muted);font-weight:700;white-space:nowrap}
+td{padding:9px 10px;border-bottom:1px solid var(--border);vertical-align:middle}
 tr:last-child td{border-bottom:none}
 tr:hover td{background:rgba(200,134,10,0.04)}
 small{font-size:0.65rem;color:var(--muted)}
+
+/* BADGES */
 .badge{display:inline-block;font-size:0.65rem;padding:3px 8px;border-radius:20px;font-weight:600;white-space:nowrap}
 .badge-bio{background:rgba(90,158,58,0.15);color:var(--bio)}
 .badge-conv{background:rgba(192,120,32,0.15);color:var(--conv)}
 .badge-green{background:rgba(90,158,58,0.12);color:var(--bio)}
 .badge-red{background:rgba(220,53,69,0.1);color:#dc3545}
 .badge-grey{background:var(--sand);color:var(--muted)}
+.badge-pub{background:rgba(139,58,26,0.12);color:var(--terra)}
+.badge-priv{background:rgba(200,134,10,0.12);color:var(--gold)}
+
+/* BOUTONS */
 .btn{display:inline-flex;align-items:center;gap:5px;padding:10px 16px;border:none;border-radius:8px;font-family:'Syne',sans-serif;font-size:0.76rem;font-weight:700;cursor:pointer;transition:all .2s}
 .btn-primary{background:var(--terra);color:#fff}.btn-primary:hover{background:var(--brown)}
 .btn-excel{background:#1d6f42;color:#fff}
@@ -272,35 +402,15 @@ small{font-size:0.65rem;color:var(--muted)}
 .btn-danger{background:#dc3545;color:#fff}
 .btn-xs{padding:5px 9px;font-size:0.68rem;border-radius:6px}
 .btn-full{width:100%;justify-content:center}
-.double-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:20px}
-@media(max-width:600px){.double-grid{grid-template-columns:1fr}}
-.stat-card{background:var(--card);border:1px solid var(--border);border-radius:14px;padding:16px;box-shadow:0 2px 8px var(--shadow)}
-.stat-card-title{font-family:'Syne',sans-serif;font-size:0.78rem;font-weight:700;letter-spacing:1px;text-transform:uppercase;color:var(--terra);margin-bottom:12px}
-.stat-row-header{display:flex;justify-content:space-between;font-size:0.62rem;letter-spacing:1px;text-transform:uppercase;color:var(--muted);padding-bottom:6px;border-bottom:1px solid var(--border);margin-bottom:6px}
-.stat-row-header span:first-child{flex:1}
-.stat-row-header span{min-width:80px;text-align:right}
-.stat-row-header span:first-child{text-align:left}
-.stat-row{display:flex;justify-content:space-between;align-items:center;padding:8px 0;border-bottom:1px solid var(--border);font-size:0.78rem}
-.stat-row:last-child{border-bottom:none}
-.stat-row-label{flex:1;color:var(--brown)}
-.stat-row-label small{color:var(--muted);font-size:0.65rem}
-.stat-row span{min-width:80px;text-align:right}
-.bar-row{margin-bottom:10px}
-.bar-label{display:flex;justify-content:space-between;font-size:0.72rem;color:var(--muted);margin-bottom:4px}
-.bar-track{height:8px;background:var(--sand);border-radius:4px;overflow:hidden;margin-bottom:3px}
-.bar-fill{height:100%;border-radius:4px;transition:width .6s ease}
-.bar-sig{font-size:0.68rem;text-align:right}
-.sig-alert{margin-top:12px;padding:10px 12px;border-radius:8px;font-size:0.75rem;line-height:1.5}
-.sig-ok{background:rgba(90,158,58,0.12);color:var(--bio)}
-.sig-warn{background:rgba(200,134,10,0.1);color:var(--gold)}
 
-
+.loading{text-align:center;padding:12px;font-size:0.8rem;color:var(--muted);display:none}
 .toast{position:fixed;bottom:20px;left:50%;transform:translateX(-50%) translateY(20px);background:var(--brown);color:#fff;padding:10px 20px;border-radius:20px;font-size:0.78rem;opacity:0;transition:all .3s;pointer-events:none;z-index:999}
 .toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
 </style>
 </head>
 <body>
 
+<!-- LOGIN -->
 <div id="loginScreen">
   <div class="login-wrap">
     <div class="login-icon">🔐</div>
@@ -309,24 +419,24 @@ small{font-size:0.65rem;color:var(--muted)}
     <div class="login-card">
       <div class="field">
         <label>Mot de passe</label>
-        <input type="password" id="mdpInput" placeholder="••••••••••••"
+        <input type="password" id="mdpInput" placeholder="••••••••"
                onkeydown="if(event.key==='Enter') verifierMDP()">
       </div>
       <div id="mdpError" class="error-msg"></div>
       <br>
-      <button class="btn btn-primary btn-full" onclick="verifierMDP()">
-        Accéder au tableau de bord →
-      </button>
+      <button class="btn btn-primary btn-full" onclick="verifierMDP()">Accéder →</button>
     </div>
   </div>
 </div>
 
+<!-- ADMIN -->
 <div id="adminScreen" style="display:none">
   <div class="admin-wrap">
+
     <div class="admin-header">
       <div>
-        <h1>🌴 Tableau de bord Admin</h1>
-        <p>Dattes Oasis — Données collectées auprès des agriculteurs</p>
+        <h1>🌴 Dashboard Admin — Dattes Oasis</h1>
+        <p>Données collectées auprès des agriculteurs</p>
       </div>
       <div class="header-actions">
         <button class="btn btn-refresh" onclick="chargerDonnees()">🔄 Actualiser</button>
@@ -334,66 +444,52 @@ small{font-size:0.65rem;color:var(--muted)}
       </div>
     </div>
 
+    <!-- KPI -->
     <div class="stats-grid">
       <div class="stat-box"><div class="stat-val" id="statTotal">—</div><div class="stat-lbl">Entrées totales</div></div>
       <div class="stat-box"><div class="stat-val" id="statCout" style="color:var(--terra)">—</div><div class="stat-lbl">Coût revient moyen</div></div>
       <div class="stat-box"><div class="stat-val" id="statMarge">—</div><div class="stat-lbl">Marge brute moyenne</div></div>
-      <div class="stat-box"><div class="stat-val" id="statRentable" style="color:var(--bio)">—</div><div class="stat-lbl">Exploitations rentables</div></div>
+      <div class="stat-box"><div class="stat-val" id="statRentable" style="color:var(--bio)">—</div><div class="stat-lbl">Rentables</div></div>
     </div>
 
-    <!-- STATS PAR MODE ET RÉGION -->
+    <!-- STATS PAR MODE ET GOUVERNORAT -->
     <div class="double-grid">
       <div class="stat-card">
         <div class="stat-card-title">🌱 Par mode de culture</div>
-        <div class="stat-row-header">
-          <span>Mode</span><span>Coût/kg</span><span>Marge/kg</span><span>Rdt kg/ha</span>
-        </div>
-        <div id="statParMode"><p class="no-data">Cliquez sur Actualiser</p></div>
+        <div class="stat-row-header"><span>Mode</span><span>Coût/kg</span><span>Marge/kg</span><span>Rdt</span></div>
+        <div id="statParMode"><p class="no-data">Cliquez Actualiser</p></div>
       </div>
       <div class="stat-card">
-        <div class="stat-card-title">📍 Par région</div>
-        <div class="stat-row-header">
-          <span>Région</span><span>Coût/kg</span><span>Marge/kg</span><span>Rdt kg/ha</span>
-        </div>
-        <div id="statParRegion"><p class="no-data">Cliquez sur Actualiser</p></div>
+        <div class="stat-card-title">📍 Par gouvernorat</div>
+        <div class="stat-row-header"><span>Gouvernorat</span><span>Coût/kg</span><span>Marge/kg</span><span>Rdt</span></div>
+        <div id="statParRegion"><p class="no-data">Cliquez Actualiser</p></div>
       </div>
     </div>
 
-    <!-- GRAPHIQUES LIGNE 1 : MODE + GOUVERNORAT -->
-    <div class="double-grid">
-      <div class="stat-card">
-        <div class="stat-card-title">📊 Par mode de culture</div>
-        <div class="stat-row-header"><span>Mode</span><span>Coût/kg</span><span>Marge/kg</span><span>Rdt kg/ha</span></div>
-        <div id="statParMode"><p class="no-data">Cliquez sur Actualiser</p></div>
+    <!-- GRAPHIQUES -->
+    <div class="charts-grid">
+      <div class="chart-card">
+        <div class="chart-card-title">📊 Coût & Marge par gouvernorat</div>
+        <div class="chart-wrap"><canvas id="chartGouv"></canvas></div>
       </div>
-      <div class="stat-card">
-        <div class="stat-card-title">📊 Par gouvernorat</div>
-        <div class="stat-row-header"><span>Gouvernorat</span><span>Coût/kg</span><span>Marge/kg</span><span>Rdt kg/ha</span></div>
-        <div id="statParRegion"><p class="no-data">Cliquez sur Actualiser</p></div>
+      <div class="chart-card">
+        <div class="chart-card-title">📊 Coût & Marge par mode de culture</div>
+        <div class="chart-wrap"><canvas id="chartMode"></canvas></div>
       </div>
-    </div>
-
-    <!-- GRAPHIQUES LIGNE 2 : DISTRIBUTION -->
-    <div class="double-grid">
-      <div class="stat-card">
-        <div class="stat-card-title">📈 Distribution par gouvernorat</div>
-        <div id="chartGouv"><p class="no-data">Cliquez sur Actualiser</p></div>
+      <div class="chart-card">
+        <div class="chart-card-title">📊 Distribution par délégation</div>
+        <div class="chart-wrap"><canvas id="chartDeleg"></canvas></div>
       </div>
-      <div class="stat-card">
-        <div class="stat-card-title">📈 Distribution par délégation</div>
-        <div id="chartDeleg"><p class="no-data">Cliquez sur Actualiser</p></div>
+      <div class="chart-card">
+        <div class="chart-card-title">📊 Distribution par type d'oasis</div>
+        <div class="chart-wrap"><canvas id="chartOasis"></canvas></div>
       </div>
     </div>
 
-    <!-- GRAPHIQUE TYPE D'OASIS -->
-    <div class="stat-card" style="margin-bottom:20px">
-      <div class="stat-card-title">🌿 Distribution par type d'oasis</div>
-      <div id="chartType"><p class="no-data">Cliquez sur Actualiser</p></div>
-    </div>
-
+    <!-- FILTRES -->
     <div class="filtres">
-      <div class="filtre-field"><label>Recherche</label><input type="text" id="filtreSearch" placeholder="Nom, région…" oninput="filtrer()"></div>
-      <div class="filtre-field"><label>Mode culture</label>
+      <div class="filtre-field"><label>Recherche</label><input type="text" id="filtreSearch" placeholder="Nom…" oninput="filtrer()"></div>
+      <div class="filtre-field"><label>Mode</label>
         <select id="filtreMode" onchange="filtrer()">
           <option value="">Tous</option>
           <option value="bio">🌱 Bio</option>
@@ -401,22 +497,33 @@ small{font-size:0.65rem;color:var(--muted)}
           <option value="trans">🔄 Transition</option>
         </select>
       </div>
+      <div class="filtre-field"><label>Gouvernorat</label>
+        <select id="filtreGouv" onchange="filtrer()">
+          <option value="">Tous</option>
+          <option value="kebili">Kébili</option>
+          <option value="tozeur">Tozeur</option>
+          <option value="gabes">Gabès</option>
+          <option value="gafsa">Gafsa</option>
+        </select>
+      </div>
       <div class="filtre-field"><label>Année</label><input type="number" id="filtreAnnee" placeholder="2024" oninput="filtrer()"></div>
     </div>
 
+    <!-- TABLE -->
     <div class="table-card">
-      <div class="loading" id="loadingMsg">⏳ Chargement des données…</div>
+      <div class="loading" id="loadingMsg">⏳ Chargement…</div>
       <div class="table-wrap">
         <table>
           <thead>
-            <tr><th>Date</th><th>Année</th><th>Nom / Région</th><th>Mode</th><th>Production</th><th>Coût/kg (DT)</th><th>Marge/kg (DT)</th><th>Rdt kg/ha</th><th>Statut</th><th></th></tr>
+            <tr><th>Date</th><th>Année</th><th>Nom</th><th>Gouv. / Délég.</th><th>Mode</th><th>Type oasis</th><th>Production</th><th>Coût/kg</th><th>Marge/kg</th><th>Statut</th><th></th></tr>
           </thead>
           <tbody id="tableBody">
-            <tr><td colspan="10" style="text-align:center;padding:20px;color:var(--muted)">Cliquez sur Actualiser</td></tr>
+            <tr><td colspan="11" style="text-align:center;padding:20px;color:var(--muted)">Cliquez sur Actualiser</td></tr>
           </tbody>
         </table>
       </div>
     </div>
+
   </div>
 </div>
 
