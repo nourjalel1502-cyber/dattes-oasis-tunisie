@@ -171,7 +171,7 @@ body.ar .alert{font-family:'Amiri',serif;font-size:0.95rem}
 
 <!-- BARRE DE LANGUE -->
 <div class="lang-bar">
-  <span class="app-name">🌴 Dattes Oasis — v1</span>
+  <span class="app-name">🌴 Dattes Oasis </span>
   <div class="lang-toggle">
     <button class="lang-btn active" onclick="setLang('fr')">FR</button>
     <button class="lang-btn" onclick="setLang('ar')">ع</button>
@@ -206,7 +206,7 @@ body.ar .alert{font-family:'Amiri',serif;font-size:0.95rem}
     <div class="row2">
       <div class="field">
         <label id="t_nom">Nom / Exploitation</label>
-        <input type="text" id="f_nom" placeholder="Ex: Ferme Ben Ali">
+        <input type="text" id="f_nom" placeholder=" ">
       </div>
       <div class="field">
         <label id="t_type_oasis">Type d'oasis</label>
@@ -475,44 +475,6 @@ function calcPrixUnitaire() {
     document.getElementById('f_pv').value = Math.round((pp/net)*1000);
 }
 
-// ── CALCUL EN DIRECT ─────────────────────────
-function calcLive() {
-  const v  = id => parseFloat(document.getElementById(id).value) || 0;
-  const prod = v('f_production'), pertes = v('f_pertes');
-  const pv   = v('f_pv') / 1000;
-  const surface = v('f_surface');
-  const tc = v('f_mo')+v('f_intrants')+v('f_eau')+v('f_recolte')+
-             v('f_transport')+v('f_cert')+v('f_amort')+v('f_autres');
-  const div = document.getElementById('liveResult');
-  if (tc > 0 || prod > 0) {
-    div.style.display = 'block';
-    const net  = prod - pertes;
-    const cout = net > 0 ? tc / net : 0;
-    const marge= pv - cout;
-    const rdt  = surface > 0 ? prod / surface : 0;
-    document.getElementById('live_cout').textContent  = cout.toFixed(3);
-    document.getElementById('live_marge').textContent = (marge>=0?'+':'')+marge.toFixed(3);
-    document.getElementById('live_marge').style.color = marge>=0?'var(--bio)':'#dc3545';
-    document.getElementById('live_total').textContent = tc.toFixed(0);
-    document.getElementById('live_rdt').textContent   = rdt>0?Math.round(rdt):'—';
-    const a = document.getElementById('live_alert');
-    const t = T[lang];
-    if (!cout) { a.className='alert'; a.textContent=''; }
-    else if (marge>0) {
-      a.className='alert alert-success';
-      a.textContent=`${t.rentable} : +${marge.toFixed(3)} DT/kg (${((marge/cout)*100).toFixed(0)}%)`;
-    } else {
-      a.className='alert alert-info';
-      a.textContent=`${t.deficit} ${Math.abs(marge).toFixed(3)} DT/kg`;
-    }
-  } else { div.style.display='none'; }
-}
-
-function toast(msg) {
-  const el = document.getElementById('toast');
-  el.textContent = msg; el.classList.add('show');
-  setTimeout(()=>el.classList.remove('show'), 3000);
-}
 </script>
 </body>
 </html>
