@@ -183,7 +183,6 @@
 <div id="toolbar">
   <button class="btn btn-add" id="btn-add-mode">➕ Ajouter un Opérateur</button>
   <button class="btn btn-locate" id="btn-locate">📍 Ma Position</button>
-  <button class="btn btn-locate" id="btn-locate-manual" title="Utile si la géolocalisation automatique se trompe (PC fixe)">✏️ Saisir Coordonnées</button>
   <button class="btn btn-export" id="btn-export">💾 Télécharger les Ajouts (.xlsx)</button>
   <button class="btn btn-sheets" id="btn-sheets">☁️ Envoyer vers Google Sheets</button>
   <button class="btn btn-clear" id="btn-clear">↺ Annuler mes ajouts</button>
@@ -875,24 +874,6 @@ document.getElementById('btn-locate').addEventListener('click', function() {
       });
     }
   }, 8000);
-});
-
-document.getElementById('btn-locate-manual').addEventListener('click', function() {
-  const saisie = window.prompt('Entrez vos coordonnées GPS (format: latitude, longitude)\nExemple : 33.9197, 8.1332', '');
-  if (!saisie) return;
-  const parts = saisie.split(',').map(s => parseFloat(s.trim()));
-  if (parts.length !== 2 || isNaN(parts[0]) || isNaN(parts[1])) {
-    alert('Format non reconnu. Entrez : latitude, longitude (ex: 33.9197, 8.1332)');
-    return;
-  }
-  const [lat, lon] = parts;
-  if (lat < -90 || lat > 90 || lon < -180 || lon > 180) {
-    alert('Coordonnées hors limites. Vérifiez la latitude (-90 à 90) et la longitude (-180 à 180).');
-    return;
-  }
-  renderUserPosition(lat, lon, 15);
-  map.setView([lat, lon], 17);
-  userMarker.openPopup();
 });
 
 window.addEventListener('afterprint', () => {
